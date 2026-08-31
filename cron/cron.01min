@@ -1,0 +1,39 @@
+#!/bin/sh
+# SmartFleet Client
+# Copyright (c) 2026 Michael Schlenstedt. Alle Rechte vorbehalten.
+# Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
+# die diesem Programm beiliegen (LICENSE).
+
+SELF="$(readlink -f "$0")"
+PLUGIN="$(basename "$SELF")"
+
+if [ -z "$LBHOMEDIR" ]; then
+    LBHOMEDIR="${SELF%/system/cron/*}"
+fi
+
+BINDIR="$LBHOMEDIR/bin/plugins/$PLUGIN"
+CONFIGDIR="$LBHOMEDIR/config/plugins/$PLUGIN"
+DATADIR="$LBHOMEDIR/data/plugins/$PLUGIN"
+
+[ -f "$CONFIGDIR/agent.json" ] || exit 0
+
+LOGDIR="$LBHOMEDIR/log/plugins/$PLUGIN"
+LOG="$LOGDIR/cron.log"
+mkdir -p "$LOGDIR" 2>/dev/null
+
+if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 262144 ]; then
+    tail -n 200 "$LOG" > "$LOG.neu" 2>/dev/null && mv "$LOG.neu" "$LOG"
+fi
+
+lauf() {
+    "$@" 2>&1 >/dev/null | while IFS= read -r zeile; do
+        echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC $zeile" >> "$LOG"
+    done
+}
+
+lauf perl "$BINDIR/fm_collect.pl" --dir "$CONFIGDIR"
+lauf perl "$BINDIR/fm_backup.pl"  --dir "$CONFIGDIR" --store "$DATADIR/backups"
+lauf perl "$BINDIR/fm_sync.pl"    --dir "$CONFIGDIR"
+
+exit 0
+

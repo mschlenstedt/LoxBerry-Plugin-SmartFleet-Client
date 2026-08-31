@@ -1,0 +1,27 @@
+<!--
+    SmartFleet Client
+    Copyright (c) 2026 Michael Schlenstedt. Alle Rechte vorbehalten.
+    Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
+    die diesem Programm beiliegen (LICENSE).
+-->
+
+<div class="lb-content">
+
+<div class="lb-card">
+<div class="lb-section-title"><TMPL_VAR FM.NAV_LOGS></div>
+
+<TMPL_IF NAME="LOGLEVEL_WAHL_DA">
+  <TMPL_VAR LOGLEVEL_WAHL>
+  <div class="lb-form-help hint"><TMPL_VAR FM.LOGLEVEL_HINWEIS></div>
+</TMPL_IF>
+
+<TMPL_IF NAME="LOGLIST_DA">
+  <TMPL_VAR LOGLIST>
+<TMPL_ELSE>
+  <div class="lb-callout">
+    <p><TMPL_VAR FM.LOGS_LEER></p>
+  </div>
+</TMPL_IF>
+
+</div>
+</div>

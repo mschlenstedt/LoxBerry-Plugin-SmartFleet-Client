@@ -1,0 +1,88 @@
+<!--
+    SmartFleet Client
+    Copyright (c) 2026 Michael Schlenstedt. Alle Rechte vorbehalten.
+    Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
+    die diesem Programm beiliegen (LICENSE).
+-->
+
+<style>
+.fm-tag-ok, .fm-tag-weg {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: .02em;
+}
+.fm-tag-ok  { background: var(--lb-success, #2e7d32); }
+.fm-tag-weg { background: var(--lb-danger,  #c62828); }
+
+.lb-callout.lb-callout-success {
+    border-left: 4px solid var(--lb-success, #2e7d32);
+}
+.lb-callout.lb-callout-danger {
+    border-left: 4px solid var(--lb-danger, #c62828);
+}
+</style>
+
+<div class="lb-content">
+
+<div class="fm-zustand" style="display:flex; justify-content:flex-end; margin-bottom:var(--lb-space-sm,8px);">
+  <span class="<TMPL_VAR ZUSTAND_KLASSE>"><TMPL_VAR ZUSTAND_TEXT></span>
+</div>
+
+<div class="lb-card">
+<div class="lb-section-title"><TMPL_VAR FM.PLUGINTITLE></div>
+
+<TMPL_IF NAME="ENROLL_MELDUNG_DA">
+  <TMPL_IF NAME="ENROLL_MELDUNG_OK">
+    <div class="lb-callout"><p><TMPL_VAR ENROLL_MELDUNG_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR ENROLL_MELDUNG_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<TMPL_IF NAME="ANGEMELDET">
+
+  <table class="lb-table">
+    <tr><td><TMPL_VAR FM.LABEL_STANDORT></td><td><TMPL_VAR SITE_NAME></td></tr>
+    <tr><td><TMPL_VAR FM.LABEL_SERVER></td><td><TMPL_VAR SERVER></td></tr>
+    <TMPL_IF NAME="HAT_ENROLLED">
+    <tr><td><TMPL_VAR FM.LABEL_ANGEMELDET_SEIT></td><td><TMPL_VAR ENROLLED_AT></td></tr>
+    </TMPL_IF>
+    <tr><td><TMPL_VAR FM.LABEL_LETZTER_POLL></td><td><TMPL_VAR POLL_ALTER></td></tr>
+    <tr><td><TMPL_VAR FM.LABEL_LETZTES_BACKUP></td><td><TMPL_VAR BACKUP_ALTER></td></tr>
+    <tr><td><TMPL_VAR FM.LABEL_TUNNEL_PW></td>
+        <td><TMPL_IF NAME="TUNNEL_GESETZT"><TMPL_VAR FM.JA><TMPL_ELSE><TMPL_VAR FM.NEIN></TMPL_IF></td></tr>
+    <tr><td><TMPL_VAR FM.LABEL_TUNNEL_ZUGRIFF></td>
+        <td><TMPL_IF NAME="TUNNEL_ERLAUBT"><TMPL_VAR FM.FREIGEGEBEN><TMPL_ELSE><TMPL_VAR FM.GESPERRT></TMPL_IF></td></tr>
+  </table>
+
+  <TMPL_IF NAME="TUNNEL_OFFEN">
+  <div class="lb-callout lb-callout-warning">
+    <div class="lb-callout-title"><TMPL_VAR FM.TUNNEL_OFFEN_TITEL></div>
+    <TMPL_IF NAME="TUNNEL_ABLAUF_BEKANNT">
+      <p><TMPL_VAR FM.TUNNEL_OFFEN_SEIT> <TMPL_VAR TUNNEL_SEIT>,
+         <TMPL_VAR FM.TUNNEL_SCHLIESST_IN> <TMPL_VAR TUNNEL_VERBLEIBEND> <TMPL_VAR FM.MINUTEN>.</p>
+    <TMPL_ELSE>
+      <p><TMPL_VAR FM.TUNNEL_KEIN_ABLAUF></p>
+    </TMPL_IF>
+  </div>
+  </TMPL_IF>
+
+  <div class="lb-actions">
+    <a class="lb-btn lb-btn-primary" href="<TMPL_VAR SERVER_URL>" target="_blank" rel="noopener"><TMPL_VAR FM.BTN_OEFFNEN></a>
+  </div>
+
+<TMPL_ELSE>
+
+  <div class="lb-callout lb-callout-danger">
+    <div class="lb-callout-title"><TMPL_VAR FM.NICHT_ANGEMELDET_TITEL></div>
+    <p><TMPL_VAR FM.NICHT_ANGEMELDET_TEXT></p>
+  </div>
+
+</TMPL_IF>
+
+</div>
+</div>

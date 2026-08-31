@@ -1,0 +1,461 @@
+<!--
+    SmartFleet Client
+    Copyright (c) 2026 Michael Schlenstedt. Alle Rechte vorbehalten.
+    Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
+    die diesem Programm beiliegen (LICENSE).
+-->
+
+<style>
+.fm-tag-ok, .fm-tag-weg {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: .02em;
+}
+.fm-tag-ok  { background: var(--lb-success, #2e7d32); }
+.fm-tag-weg { background: var(--lb-danger,  #c62828); }
+
+.lb-callout.lb-callout-success {
+    border-left: 4px solid var(--lb-success, #2e7d32);
+}
+.lb-callout.lb-callout-danger {
+    border-left: 4px solid var(--lb-danger, #c62828);
+}
+</style>
+
+<div class="lb-content">
+
+<div class="fm-zustand" style="display:flex; justify-content:flex-end; margin-bottom:var(--lb-space-sm,8px);">
+  <span class="<TMPL_VAR ZUSTAND_KLASSE>"><TMPL_VAR ZUSTAND_TEXT></span>
+</div>
+
+<div class="lb-card">
+<div class="lb-section-title"><TMPL_VAR FM.NAV_SETTINGS></div>
+
+<div class="lb-section-title" id="verbindung"><TMPL_VAR FM.ENROLL_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_VERBINDUNG_DA">
+  <TMPL_IF NAME="MELDUNG_VERBINDUNG_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<TMPL_IF NAME="ANGEMELDET">
+
+  <div class="lb-callout lb-callout-success">
+    <div class="lb-callout-title"><TMPL_VAR FM.ENROLL_SCHON_ANGEMELDET> <TMPL_VAR SITE_NAME></div>
+  </div>
+<TMPL_ELSE>
+  <form method="post" action="index.cgi">
+    <input type="hidden" name="form" value="settings">
+    <div class="lb-form-row">
+      <label class="lb-form-label" for="code"><TMPL_VAR FM.LABEL_CODE></label>
+      <div class="lb-form-field">
+        <textarea class="lb-textarea" id="code" name="code" rows="4" placeholder="FM1-..." autocomplete="off"></textarea>
+      </div>
+    </div>
+    <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_CODE></div>
+    <div class="lb-actions">
+      <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="enroll"><TMPL_VAR FM.BTN_ENROLL></button>
+    </div>
+  </form>
+</TMPL_IF>
+
+<div class="lb-section-title" id="fernwartung"><TMPL_VAR FM.ZUGRIFF_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_FERNWARTUNG_DA">
+  <TMPL_IF NAME="MELDUNG_FERNWARTUNG_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<form method="post" action="index.cgi" id="fm-zugriff-form">
+  <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="aktion" id="fm-zugriff-aktion"
+         value="<TMPL_IF NAME="TUNNEL_ERLAUBT">tunnel_erlaubt_aus<TMPL_ELSE>tunnel_erlaubt_ein</TMPL_IF>">
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: var(--lb-space-lg); padding: var(--lb-space-sm) 0;">
+    <label for="fm-zugriff" style="font-weight: 600; font-size: var(--lb-font-sm); color: var(--lb-text-secondary); cursor: pointer;"><TMPL_VAR FM.LABEL_TUNNEL_ZUGRIFF></label>
+    <label class="lb-toggle">
+      <input type="checkbox" id="fm-zugriff"
+             onchange="fmRiegel(this);"
+             <TMPL_IF NAME="TUNNEL_ERLAUBT">checked</TMPL_IF>>
+      <span class="lb-toggle-slider"></span>
+    </label>
+    <div style="flex-basis: 100%; font-size: 0.8rem; color: var(--lb-text-muted); line-height: 1.5;">
+      <span id="fm-zugriff-text" data-an="<TMPL_VAR FM.ZUGRIFF_ERLAUBT>" data-aus="<TMPL_VAR FM.ZUGRIFF_GESPERRT>"><TMPL_IF NAME="TUNNEL_ERLAUBT"><TMPL_VAR FM.ZUGRIFF_ERLAUBT><TMPL_ELSE><TMPL_VAR FM.ZUGRIFF_GESPERRT></TMPL_IF></span>
+      <TMPL_VAR FM.ZUGRIFF_HINWEIS>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="lb-actions">
+      <button type="submit" class="lb-btn"><TMPL_IF NAME="TUNNEL_ERLAUBT"><TMPL_VAR FM.BTN_SPERREN><TMPL_ELSE><TMPL_VAR FM.BTN_FREIGEBEN></TMPL_IF></button>
+    </div>
+  </noscript>
+</form>
+
+<TMPL_IF NAME="MELDUNG_PASSWORT_DA">
+  <TMPL_IF NAME="MELDUNG_PASSWORT_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<TMPL_IF NAME="TUNNEL_GESETZT">
+<TMPL_ELSE>
+  <TMPL_IF NAME="ANGEMELDET">
+    <div class="lb-callout lb-callout-warning">
+      <div class="lb-callout-title"><TMPL_VAR FM.PASSWORT_FEHLT_TITEL></div>
+      <p><TMPL_VAR FM.PASSWORT_FEHLT></p>
+    </div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<form method="post" action="index.cgi" id="passwort">
+  <input type="hidden" name="form" value="settings">
+  <div class="lb-form-row">
+    <label class="lb-form-label" for="tp_pw"><TMPL_VAR FM.LABEL_PASSWORT></label>
+    <div class="lb-form-field">
+      <input class="lb-input" type="text" id="tp_pw" name="pw" value="<TMPL_VAR PW_VORSCHLAG>" autocomplete="off" <TMPL_VAR NUR_MIT_TUNNEL>>
+    </div>
+  </div>
+  <div class="lb-form-help hint"><TMPL_VAR FM.PASSWORT_HINWEIS></div>
+  <div class="lb-actions">
+    <button type="submit" class="lb-btn" name="aktion" value="vorschlag" <TMPL_VAR NUR_MIT_TUNNEL>><TMPL_VAR FM.BTN_VORSCHLAG></button>
+    <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="setzen" <TMPL_VAR NUR_MIT_BEIDEM>><TMPL_VAR FM.BTN_SETZEN></button>
+  </div>
+</form>
+
+<div class="lb-section-title" id="sicherungen"><TMPL_VAR FM.SICHERUNGEN_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_SICHERUNGEN_DA">
+  <TMPL_IF NAME="MELDUNG_SICHERUNGEN_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<form method="post" action="index.cgi">
+  <input type="hidden" name="form" value="settings">
+
+  <TMPL_IF NAME="STORE_AUSWAHL_DA">
+    <TMPL_VAR STORE_AUSWAHL>
+  <TMPL_ELSE>
+    <div class="lb-form-row">
+      <label class="lb-form-label" for="store"><TMPL_VAR FM.LABEL_BACKUP_STORE></label>
+      <div class="lb-form-field">
+        <input class="lb-input" type="text" id="store" name="store" value="<TMPL_VAR BACKUP_STORE>">
+      </div>
+    </div>
+  </TMPL_IF>
+  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_BACKUP_STORE></div>
+  <div class="lb-actions">
+    <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="einstellungen"><TMPL_VAR FM.BTN_SPEICHERN></button>
+  </div>
+</form>
+
+<div class="lb-section-title" id="messwerte"><TMPL_VAR FM.MESSWERTE_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_MESSWERTE_DA">
+  <TMPL_IF NAME="MELDUNG_MESSWERTE_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<form method="post" action="index.cgi">
+  <input type="hidden" name="form" value="settings">
+  <div class="lb-form-row">
+    <label class="lb-form-label" for="interval"><TMPL_VAR FM.LABEL_INTERVAL></label>
+    <div class="lb-form-field">
+      <input class="lb-input" type="text" id="interval" name="interval" value="<TMPL_VAR COLLECT_INTERVAL>" placeholder="<TMPL_VAR SERVER_INTERVAL>">
+    </div>
+  </div>
+  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_INTERVAL> <TMPL_VAR SERVER_INTERVAL> <TMPL_VAR FM.SEKUNDEN>.</div>
+  <div class="lb-actions">
+    <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="messwerte"><TMPL_VAR FM.BTN_SPEICHERN></button>
+  </div>
+</form>
+
+<div class="lb-section-title" id="testen"><TMPL_VAR FM.PRUEFUNG_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_TESTEN_DA">
+  <TMPL_IF NAME="MELDUNG_TESTEN_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<p><TMPL_VAR FM.PRUEFUNG_HINWEIS></p>
+<div class="lb-actions">
+  <button type="button" class="lb-btn" id="fm-test-knopf" <TMPL_VAR NUR_MIT_SERVER>><TMPL_VAR FM.BTN_PRUEFEN></button>
+</div>
+
+<div id="fm-test-fenster" role="dialog" aria-modal="true" aria-labelledby="fm-test-titel"
+     style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
+  <div style="background:var(--lb-surface,#fff); color:var(--lb-text,#222); border-radius:var(--lb-radius,6px); box-shadow:0 8px 32px rgba(0,0,0,.3); width:min(680px,92vw); max-height:82vh; display:flex; flex-direction:column;">
+    <div class="lb-section-title" id="fm-test-titel" style="margin:0; padding:var(--lb-space-md,16px);"><TMPL_VAR FM.PRUEFUNG_TITEL></div>
+    <pre id="fm-test-ausgabe" style="flex:1; overflow:auto; margin:0; padding:0 var(--lb-space-md,16px); white-space:pre-wrap; word-break:break-word; font-size:.85rem; line-height:1.5;"></pre>
+    <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
+      <button type="button" class="lb-btn lb-btn-primary" id="fm-test-schliessen"><TMPL_VAR FM.BTN_SCHLIESSEN></button>
+    </div>
+  </div>
+</div>
+
+<div class="lb-section-title" id="trennen"><TMPL_VAR FM.ABMELDEN_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_TRENNEN_DA">
+  <TMPL_IF NAME="MELDUNG_TRENNEN_OK">
+    <div class="lb-callout"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<p><TMPL_VAR FM.ABMELDEN_HINWEIS></p>
+<form method="post" action="index.cgi">
+  <input type="hidden" name="form" value="settings">
+  <div class="lb-actions">
+    <button type="submit" class="lb-btn" name="aktion" value="abmelden" <TMPL_VAR NUR_MIT_SERVER>><TMPL_VAR FM.BTN_ABMELDEN></button>
+  </div>
+</form>
+
+<script>
+(function () {
+    "use strict";
+
+    // ---------------------------------------------------------------------
+    // Sternchen verschwinden beim Hineinklicken
+    //
+    // Sie sind eine Anzeige ("ein Passwort ist gesetzt"), kein Inhalt - das
+    // echte Passwort steht nirgends, gespeichert ist nur der daraus
+    // abgeleitete Schluessel. Wer ins Feld klickt, will tippen; er soll
+    // nicht erst eine Reihe Sterne loeschen muessen.
+    // ---------------------------------------------------------------------
+    document.addEventListener("focusin", function (e) {
+        var feld = e.target;
+        if (feld && feld.id === "tp_pw" && /^\*+$/.test(feld.value)) {
+            feld.value = "";
+        }
+    });
+
+    // ---------------------------------------------------------------------
+    // Der Umschalter fuer die Fernwartung - sofort, ohne Neuaufbau
+    //
+    // Er aendert genau ein Feld in einer Datei. Die Seite dafuer komplett neu
+    // erzeugen zu lassen kostete rund eine Sekunde: Dabei wird auch die
+    // Ordnerauswahl neu gebaut, und die holt ihre Liste per HTTP vom eigenen
+    // Webserver. Bei einem Schalter, der sich sofort bewegt, wirkt diese
+    // Sekunde wie ein Fehler.
+    //
+    // Deshalb: Die abhaengigen Felder werden SOFORT gesperrt oder
+    // freigegeben, und das Speichern laeuft daneben. Kommt es durch, ist
+    // ohnehin schon alles richtig; scheitert es, geht der Schalter zurueck.
+    var riegelLaeuft = null;
+
+    window.fmRiegel = function (schalter) {
+        var form = schalter.form;
+        var an = schalter.checked;
+
+        riegelAnzeigen(an);
+
+        // Eine noch laufende Anfrage abbrechen: Wer zweimal schnell klickt,
+        // soll das Ergebnis des ZWEITEN Klicks sehen, nicht das des ersten,
+        // das zufaellig spaeter ankommt.
+        if (riegelLaeuft) { riegelLaeuft.abort(); }
+        riegelLaeuft = new AbortController();
+
+        var daten = new FormData(form);
+        daten.append("aktion", an ? "tunnel_erlaubt_ein" : "tunnel_erlaubt_aus");
+
+        fetch(form.action, {
+            method: "POST", body: daten, credentials: "same-origin",
+            headers: { "X-FM-Fetch": "1" }, signal: riegelLaeuft.signal
+        })
+        .then(function () { riegelLaeuft = null; })
+        .catch(function (f) {
+            if (f && f.name === "AbortError") { return; }
+            riegelLaeuft = null;
+            schalter.checked = !an;
+            riegelAnzeigen(!an);
+        });
+    };
+
+    // Was am Riegel haengt: das Passwort. Ist er zu, gibt es nichts zu
+    // vergeben. Die Regel steht hier UND im Perl-Code - hier fuer die
+    // sofortige Anzeige, dort fuer den naechsten Seitenaufbau und gegen eine
+    // Anfrage, die von Hand geschickt wird.
+    function riegelAnzeigen(an) {
+        var stuecke = [document.getElementById("tp_pw")];
+        var knoepfe = document.querySelectorAll("[name=aktion][value=vorschlag], [name=aktion][value=setzen]");
+        for (var i = 0; i < knoepfe.length; i++) { stuecke.push(knoepfe[i]); }
+        for (var j = 0; j < stuecke.length; j++) {
+            if (stuecke[j]) { stuecke[j].disabled = !an; }
+        }
+        var text = document.getElementById("fm-zugriff-text");
+        if (text) { text.textContent = an ? text.dataset.an : text.dataset.aus; }
+    }
+
+    // ---------------------------------------------------------------------
+    // Speichern ohne Neuladen
+    //
+    // Vorher wurde das Formular normal abgeschickt: Der Browser lud die Seite
+    // neu, zeigte sie oben an, und ein Skript scrollte danach zurueck. Genau
+    // dieses Nachscrollen war das sichtbare Zucken - es kann gar nicht anders
+    // aussehen, denn es geschieht NACH dem Rendern.
+    //
+    // Jetzt geht der Inhalt per fetch raus, und nur die Karte im Dokument
+    // wird ausgetauscht. Die Seite bleibt stehen, wo sie steht: Es gibt
+    // nichts zurueckzuscrollen, weil nie gesprungen wurde.
+    //
+    // Ohne JavaScript senden die Formulare weiterhin normal - dann laedt die
+    // Seite neu und beginnt oben. Vollstaendig bedienbar, nur weniger ruhig.
+    // ---------------------------------------------------------------------
+    function austauschen(html) {
+        var neu = new DOMParser().parseFromString(html, "text/html");
+
+        // Die beiden Teile, die sich aendern koennen: das Zustandsschild oben
+        // und die Karte mit allem Inhalt. Der Rest der Seite (Kopf, Reiter,
+        // Fuss) bleibt unberuehrt - er kommt ohnehin unveraendert zurueck.
+        var paare = [[".fm-zustand", ".fm-zustand"], [".lb-card", ".lb-card"]];
+        for (var i = 0; i < paare.length; i++) {
+            var alt = document.querySelector(paare[i][0]);
+            var frisch = neu.querySelector(paare[i][1]);
+            if (alt && frisch) { alt.replaceWith(frisch); }
+        }
+        skripteNachziehen();
+    }
+
+    // Ein per innerHTML/replaceWith eingesetztes <script> fuehrt der Browser
+    // NICHT aus. Das betrifft hier nur den Storage-Waehler, der sich selbst
+    // fuellt - ohne diesen Schritt bliebe seine Auswahl nach dem Speichern
+    // leer und der Betreiber haette den Eindruck, sie sei verlorengegangen.
+    function skripteNachziehen() {
+        var karte = document.querySelector(".lb-card");
+        if (!karte) { return; }
+        var skripte = karte.querySelectorAll("script");
+        for (var i = 0; i < skripte.length; i++) {
+            var neu = document.createElement("script");
+            if (skripte[i].src) { neu.src = skripte[i].src; }
+            else { neu.textContent = skripte[i].textContent; }
+            skripte[i].replaceWith(neu);
+        }
+    }
+
+    // Delegation am Dokument, nicht am einzelnen Formular: Nach dem Austausch
+    // sind die Formulare andere Elemente - ein Handler an ihnen waere weg.
+    var laufend = null;
+
+    document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (!form || form.tagName !== "FORM") { return; }
+        // Nur unsere eigenen Formulare. Fremde (etwa aus dem Storage-Waehler)
+        // sollen ihren gewohnten Weg gehen.
+        if (!form.closest(".lb-card")) { return; }
+
+        e.preventDefault();
+
+        var daten = new FormData(form);
+        // Ein FormData nimmt den Knopf, mit dem gesendet wurde, NICHT auf -
+        // und genau der traegt hier die Aktion ("aktion=setzen"). Ohne diese
+        // Zeile kaeme beim Server ein Aufruf ohne Aktion an, und es geschaehe
+        // schlicht nichts.
+        var knopf = e.submitter;
+        if (knopf && knopf.name) { daten.append(knopf.name, knopf.value); }
+
+        // Eine noch laufende Anfrage abbrechen - sonst ueberschreibt eine
+        // spaet eintreffende alte Antwort das Ergebnis der neuen, und die
+        // Seite zeigt einen Stand, den es nie gab.
+        if (laufend) { laufend.abort(); }
+        laufend = new AbortController();
+
+        fetch(form.action, {
+            signal: laufend.signal,
+            method: "POST",
+            body: daten,
+            credentials: "same-origin",
+            // Damit der Server weiss, dass er NICHT umleiten soll: Diese
+            // Anfrage aendert die Chronik nicht, ein 303 waere hier nur ein
+            // ueberfluessiger zweiter Aufruf.
+            headers: { "X-FM-Fetch": "1" }
+        })
+            .then(function (a) { return a.text(); })
+            .then(function (html) { laufend = null; austauschen(html); })
+            .catch(function (f) {
+                if (f && f.name === "AbortError") { return; }
+                // Geht der Weg ueber fetch schief, wird normal abgeschickt -
+                // lieber ein Neuladen als ein Knopf, der nichts tut.
+                form.submit();
+            });
+    });
+
+    // ---------------------------------------------------------------------
+    // Das Fenster fuer den Verbindungstest
+    //
+    // Am Dokument statt am Knopf, aus demselben Grund: Nach einem Austausch
+    // ist der Knopf ein anderes Element.
+    // ---------------------------------------------------------------------
+    document.addEventListener("click", function (e) {
+        var ziel = e.target.closest ? e.target.closest("#fm-test-knopf, #fm-test-schliessen") : null;
+        if (!ziel) { return; }
+
+        var fenster = document.getElementById("fm-test-fenster");
+        var ausgabe = document.getElementById("fm-test-ausgabe");
+        if (!fenster || !ausgabe) { return; }
+
+        if (ziel.id === "fm-test-schliessen") { fenster.style.display = "none"; return; }
+        if (ziel.disabled) { return; }
+
+        ausgabe.textContent = "";
+        fenster.style.display = "flex";
+
+        // Der Test laeuft als Datenstrom: Jede Zeile erscheint, sobald sie da
+        // ist. Ohne das Mitlesen saehe man mehrere Sekunden nichts und danach
+        // alles auf einmal - und wuesste bei einem Haenger nicht, wie weit es
+        // gekommen war.
+        fetch("index.cgi?ajax=pruefen", { credentials: "same-origin" })
+            .then(function (antwort) {
+                if (!antwort.body || !antwort.body.getReader) {
+                    return antwort.text().then(function (t) { ausgabe.textContent = t; });
+                }
+                var leser = antwort.body.getReader();
+                var dekoder = new TextDecoder("utf-8");
+                return (function weiter() {
+                    return leser.read().then(function (stueck) {
+                        if (stueck.done) { return; }
+                        ausgabe.textContent += dekoder.decode(stueck.value, { stream: true });
+                        ausgabe.scrollTop = ausgabe.scrollHeight;
+                        return weiter();
+                    });
+                })();
+            })
+            .catch(function (fehler) { ausgabe.textContent += "\n" + fehler; });
+    });
+
+    document.addEventListener("click", function (e) {
+        var fenster = document.getElementById("fm-test-fenster");
+        if (fenster && e.target === fenster) { fenster.style.display = "none"; }
+    });
+    document.addEventListener("keydown", function (e) {
+        var fenster = document.getElementById("fm-test-fenster");
+        if (e.key === "Escape" && fenster && fenster.style.display !== "none") {
+            fenster.style.display = "none";
+        }
+    });
+})();
+</script>
+
+</div>
+</div>
