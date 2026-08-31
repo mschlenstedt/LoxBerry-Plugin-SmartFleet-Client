@@ -35,6 +35,49 @@
 <div class="lb-card">
 <div class="lb-section-title"><TMPL_VAR FM.NAV_SETTINGS></div>
 
+<TMPL_IF NAME="FREIGEGEBEN">
+<TMPL_ELSE>
+
+  <center id="securepin_block">
+  <div class="path" style="width:300px">
+    <p><center><TMPL_VAR SECUREPIN.ENTER_SECUREPIN></center></p>
+    <div style="margin:10px;display:flex;gap:8px;align-items:center">
+      <input name="securepin" id="securepin" type="password" placeholder="SecurePIN" style="flex:1;min-width:0">
+      <button class="lb-btn lb-btn-sm" id="check_securepin" data-role="none"><TMPL_VAR COMMON.BUTTON_OK></button>
+    </div>
+    <div class="hint" id="check_hint" style="padding:5px;"
+         data-wait="<TMPL_VAR SECUREPIN.CHECK_WAIT>"
+         data-wrong="<TMPL_VAR SECUREPIN.ERROR_WRONG>"
+         data-locked="<TMPL_VAR SECUREPIN.ERROR_LOCKED>"
+         data-generic="<TMPL_VAR SECUREPIN.ERROR_GENERIC>">&nbsp;</div>
+  </div>
+  <br>
+  <div class="path" style="background:#FF8080;font-color:black;text-shadow:none;width:300px;border:black 1px solid;padding:5px">
+    <p style="font-weight:bold;">
+      <TMPL_VAR SECUREPIN.WARNING_TITLE>
+    </p>
+    <hr>
+    <p>
+      <TMPL_VAR SECUREPIN.PREVENT_SPY>
+    </p>
+  </div>
+  </center>
+
+  <script>
+  (function () {
+      var gespeichert = null;
+      try { gespeichert = sessionStorage.getItem("securePIN"); } catch (e) { }
+      if (!gespeichert) { return; }
+      var feld  = document.getElementById("securepin");
+      var block = document.getElementById("securepin_block");
+      if (feld)  { feld.value = gespeichert; }
+      if (block) { block.style.visibility = "hidden"; }
+  })();
+</script>
+</TMPL_IF>
+
+<TMPL_IF NAME="FREIGEGEBEN">
+
 <div class="lb-section-title" id="verbindung"><TMPL_VAR FM.ENROLL_TITEL></div>
 
 <TMPL_IF NAME="MELDUNG_VERBINDUNG_DA">
@@ -53,6 +96,7 @@
 <TMPL_ELSE>
   <form method="post" action="index.cgi">
     <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
     <div class="lb-form-row">
       <label class="lb-form-label" for="code"><TMPL_VAR FM.LABEL_CODE></label>
       <div class="lb-form-field">
@@ -78,6 +122,7 @@
 
 <form method="post" action="index.cgi" id="fm-zugriff-form">
   <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
   <input type="hidden" name="aktion" id="fm-zugriff-aktion"
          value="<TMPL_IF NAME="TUNNEL_ERLAUBT">tunnel_erlaubt_aus<TMPL_ELSE>tunnel_erlaubt_ein</TMPL_IF>">
 
@@ -122,6 +167,7 @@
 
 <form method="post" action="index.cgi" id="passwort">
   <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
   <div class="lb-form-row">
     <label class="lb-form-label" for="tp_pw"><TMPL_VAR FM.LABEL_PASSWORT></label>
     <div class="lb-form-field">
@@ -147,6 +193,7 @@
 
 <form method="post" action="index.cgi">
   <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
 
   <TMPL_IF NAME="STORE_AUSWAHL_DA">
     <TMPL_VAR STORE_AUSWAHL>
@@ -176,6 +223,7 @@
 
 <form method="post" action="index.cgi">
   <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
   <div class="lb-form-row">
     <label class="lb-form-label" for="interval"><TMPL_VAR FM.LABEL_INTERVAL></label>
     <div class="lb-form-field">
@@ -225,25 +273,148 @@
 </TMPL_IF>
 
 <p><TMPL_VAR FM.ABMELDEN_HINWEIS></p>
-<form method="post" action="index.cgi">
+<form method="post" action="index.cgi" id="fm-trennen-form">
   <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
   <div class="lb-actions">
-    <button type="submit" class="lb-btn" name="aktion" value="abmelden" <TMPL_VAR NUR_MIT_SERVER>><TMPL_VAR FM.BTN_ABMELDEN></button>
+
+    <button type="button" class="lb-btn" id="fm-trennen-knopf" <TMPL_VAR NUR_MIT_SERVER>><TMPL_VAR FM.BTN_ABMELDEN></button>
   </div>
+  <noscript>
+
+    <div class="lb-actions">
+      <button type="submit" class="lb-btn" name="aktion" value="abmelden"><TMPL_VAR FM.BTN_ABMELDEN></button>
+    </div>
+    <p class="lb-form-help hint"><TMPL_VAR FM.TRENNEN_WARNUNG_1></p>
+  </noscript>
 </form>
+
+<div id="fm-trennen-fenster" role="dialog" aria-modal="true" aria-labelledby="fm-trennen-titel"
+     style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
+  <div style="background:var(--lb-surface,#fff); color:var(--lb-text,#222); border-radius:var(--lb-radius,6px); box-shadow:0 8px 32px rgba(0,0,0,.3); width:min(560px,92vw); border-top:6px solid var(--lb-danger,#c62828);">
+    <div class="lb-section-title" id="fm-trennen-titel" style="margin:0; padding:var(--lb-space-md,16px); color:var(--lb-danger,#c62828);"><TMPL_VAR FM.TRENNEN_WARNUNG_TITEL></div>
+    <div style="padding:0 var(--lb-space-md,16px);">
+      <p><TMPL_VAR FM.TRENNEN_WARNUNG_1></p>
+      <p><TMPL_VAR FM.TRENNEN_WARNUNG_2></p>
+    </div>
+    <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
+      <button type="button" class="lb-btn lb-btn-primary" id="fm-trennen-nein"><TMPL_VAR FM.TRENNEN_NEIN></button>
+      <button type="button" class="lb-btn" id="fm-trennen-ja"><TMPL_VAR FM.TRENNEN_JA></button>
+    </div>
+  </div>
+</div>
+
+</TMPL_IF>
 
 <script>
 (function () {
     "use strict";
 
-    // ---------------------------------------------------------------------
-    // Sternchen verschwinden beim Hineinklicken
-    //
-    // Sie sind eine Anzeige ("ein Passwort ist gesetzt"), kein Inhalt - das
-    // echte Passwort steht nirgends, gespeichert ist nur der daraus
-    // abgeleitete Schluessel. Wer ins Feld klickt, will tippen; er soll
-    // nicht erst eine Reihe Sterne loeschen muessen.
-    // ---------------------------------------------------------------------
+    var SPEICHER = "securePIN";
+
+    function pinLesen() {
+        try { return sessionStorage.getItem(SPEICHER); } catch (e) { return null; }
+    }
+    function pinMerken(wert) {
+        try { sessionStorage.setItem(SPEICHER, wert); } catch (e) { }
+    }
+    function pinVergessen() {
+        try { sessionStorage.removeItem(SPEICHER); } catch (e) { }
+    }
+
+    function pinPruefen() {
+        var feld  = document.getElementById("securepin");
+        var hint  = document.getElementById("check_hint");
+        var knopf = document.getElementById("check_securepin");
+        var block = document.getElementById("securepin_block");
+        if (!feld || !feld.value) { zeigen(); return; }
+
+        function melden(text, farbe) {
+            if (!hint) { return; }
+            hint.textContent = text;
+            hint.style.color = farbe;
+        }
+        function zeigen() {
+            if (block) { block.style.visibility = ""; }
+        }
+
+        if (knopf) { knopf.disabled = true; }
+        melden(hint ? hint.dataset.wait : "", "blue");
+
+        var daten = new FormData();
+        daten.append("ajax", "pin");
+        daten.append("secpin", feld.value);
+
+        fetch("index.cgi", { method: "POST", body: daten, credentials: "same-origin" })
+            .then(function (a) { return a.json(); })
+            .then(function (j) {
+                if (j && j.ok && j.schein) {
+                    pinMerken(feld.value);
+                    location.replace("index.cgi?form=settings&schein=" + encodeURIComponent(j.schein));
+                    return;
+                }
+
+                pinVergessen();
+                feld.value = "";
+                if (knopf) { knopf.disabled = false; }
+                zeigen();
+                melden(hint ? (j && j.gesperrt ? hint.dataset.locked : hint.dataset.wrong) : "", "red");
+            })
+            .catch(function () {
+                if (knopf) { knopf.disabled = false; }
+                zeigen();
+                melden(hint ? hint.dataset.generic : "", "red");
+            });
+    }
+
+    document.addEventListener("click", function (e) {
+        var ziel = e.target.closest ? e.target.closest("#check_securepin") : null;
+        if (ziel) { pinPruefen(); }
+    });
+
+    if (document.getElementById("securepin") && pinLesen()) {
+        pinPruefen();
+    }
+
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && e.target && e.target.id === "securepin") {
+            e.preventDefault();
+            var k = document.getElementById("check_securepin");
+            if (k) { k.click(); }
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        var ziel = e.target.closest
+                 ? e.target.closest("#fm-trennen-knopf, #fm-trennen-ja, #fm-trennen-nein")
+                 : null;
+        if (!ziel) { return; }
+        var fenster = document.getElementById("fm-trennen-fenster");
+        if (!fenster) { return; }
+
+        if (ziel.id === "fm-trennen-knopf") {
+            if (ziel.disabled) { return; }
+            fenster.style.display = "flex";
+            var nein = document.getElementById("fm-trennen-nein");
+            if (nein) { nein.focus(); }
+            return;
+        }
+        fenster.style.display = "none";
+        if (ziel.id !== "fm-trennen-ja") { return; }
+
+        var form = document.getElementById("fm-trennen-form");
+        if (!form) { return; }
+        var k = document.createElement("input");
+        k.type = "hidden"; k.name = "aktion"; k.value = "abmelden";
+        form.appendChild(k);
+        if (form.requestSubmit) { form.requestSubmit(); } else { form.submit(); }
+    });
+
+    document.addEventListener("keydown", function (e) {
+        var f = document.getElementById("fm-trennen-fenster");
+        if (e.key === "Escape" && f && f.style.display !== "none") { f.style.display = "none"; }
+    });
+
     document.addEventListener("focusin", function (e) {
         var feld = e.target;
         if (feld && feld.id === "tp_pw" && /^\*+$/.test(feld.value)) {
@@ -251,18 +422,6 @@
         }
     });
 
-    // ---------------------------------------------------------------------
-    // Der Umschalter fuer die Fernwartung - sofort, ohne Neuaufbau
-    //
-    // Er aendert genau ein Feld in einer Datei. Die Seite dafuer komplett neu
-    // erzeugen zu lassen kostete rund eine Sekunde: Dabei wird auch die
-    // Ordnerauswahl neu gebaut, und die holt ihre Liste per HTTP vom eigenen
-    // Webserver. Bei einem Schalter, der sich sofort bewegt, wirkt diese
-    // Sekunde wie ein Fehler.
-    //
-    // Deshalb: Die abhaengigen Felder werden SOFORT gesperrt oder
-    // freigegeben, und das Speichern laeuft daneben. Kommt es durch, ist
-    // ohnehin schon alles richtig; scheitert es, geht der Schalter zurueck.
     var riegelLaeuft = null;
 
     window.fmRiegel = function (schalter) {
@@ -271,9 +430,6 @@
 
         riegelAnzeigen(an);
 
-        // Eine noch laufende Anfrage abbrechen: Wer zweimal schnell klickt,
-        // soll das Ergebnis des ZWEITEN Klicks sehen, nicht das des ersten,
-        // das zufaellig spaeter ankommt.
         if (riegelLaeuft) { riegelLaeuft.abort(); }
         riegelLaeuft = new AbortController();
 
@@ -293,10 +449,6 @@
         });
     };
 
-    // Was am Riegel haengt: das Passwort. Ist er zu, gibt es nichts zu
-    // vergeben. Die Regel steht hier UND im Perl-Code - hier fuer die
-    // sofortige Anzeige, dort fuer den naechsten Seitenaufbau und gegen eine
-    // Anfrage, die von Hand geschickt wird.
     function riegelAnzeigen(an) {
         var stuecke = [document.getElementById("tp_pw")];
         var knoepfe = document.querySelectorAll("[name=aktion][value=vorschlag], [name=aktion][value=setzen]");
@@ -308,27 +460,9 @@
         if (text) { text.textContent = an ? text.dataset.an : text.dataset.aus; }
     }
 
-    // ---------------------------------------------------------------------
-    // Speichern ohne Neuladen
-    //
-    // Vorher wurde das Formular normal abgeschickt: Der Browser lud die Seite
-    // neu, zeigte sie oben an, und ein Skript scrollte danach zurueck. Genau
-    // dieses Nachscrollen war das sichtbare Zucken - es kann gar nicht anders
-    // aussehen, denn es geschieht NACH dem Rendern.
-    //
-    // Jetzt geht der Inhalt per fetch raus, und nur die Karte im Dokument
-    // wird ausgetauscht. Die Seite bleibt stehen, wo sie steht: Es gibt
-    // nichts zurueckzuscrollen, weil nie gesprungen wurde.
-    //
-    // Ohne JavaScript senden die Formulare weiterhin normal - dann laedt die
-    // Seite neu und beginnt oben. Vollstaendig bedienbar, nur weniger ruhig.
-    // ---------------------------------------------------------------------
     function austauschen(html) {
         var neu = new DOMParser().parseFromString(html, "text/html");
 
-        // Die beiden Teile, die sich aendern koennen: das Zustandsschild oben
-        // und die Karte mit allem Inhalt. Der Rest der Seite (Kopf, Reiter,
-        // Fuss) bleibt unberuehrt - er kommt ohnehin unveraendert zurueck.
         var paare = [[".fm-zustand", ".fm-zustand"], [".lb-card", ".lb-card"]];
         for (var i = 0; i < paare.length; i++) {
             var alt = document.querySelector(paare[i][0]);
@@ -338,10 +472,6 @@
         skripteNachziehen();
     }
 
-    // Ein per innerHTML/replaceWith eingesetztes <script> fuehrt der Browser
-    // NICHT aus. Das betrifft hier nur den Storage-Waehler, der sich selbst
-    // fuellt - ohne diesen Schritt bliebe seine Auswahl nach dem Speichern
-    // leer und der Betreiber haette den Eindruck, sie sei verlorengegangen.
     function skripteNachziehen() {
         var karte = document.querySelector(".lb-card");
         if (!karte) { return; }
@@ -354,30 +484,19 @@
         }
     }
 
-    // Delegation am Dokument, nicht am einzelnen Formular: Nach dem Austausch
-    // sind die Formulare andere Elemente - ein Handler an ihnen waere weg.
     var laufend = null;
 
     document.addEventListener("submit", function (e) {
         var form = e.target;
         if (!form || form.tagName !== "FORM") { return; }
-        // Nur unsere eigenen Formulare. Fremde (etwa aus dem Storage-Waehler)
-        // sollen ihren gewohnten Weg gehen.
         if (!form.closest(".lb-card")) { return; }
 
         e.preventDefault();
 
         var daten = new FormData(form);
-        // Ein FormData nimmt den Knopf, mit dem gesendet wurde, NICHT auf -
-        // und genau der traegt hier die Aktion ("aktion=setzen"). Ohne diese
-        // Zeile kaeme beim Server ein Aufruf ohne Aktion an, und es geschaehe
-        // schlicht nichts.
         var knopf = e.submitter;
         if (knopf && knopf.name) { daten.append(knopf.name, knopf.value); }
 
-        // Eine noch laufende Anfrage abbrechen - sonst ueberschreibt eine
-        // spaet eintreffende alte Antwort das Ergebnis der neuen, und die
-        // Seite zeigt einen Stand, den es nie gab.
         if (laufend) { laufend.abort(); }
         laufend = new AbortController();
 
@@ -386,27 +505,16 @@
             method: "POST",
             body: daten,
             credentials: "same-origin",
-            // Damit der Server weiss, dass er NICHT umleiten soll: Diese
-            // Anfrage aendert die Chronik nicht, ein 303 waere hier nur ein
-            // ueberfluessiger zweiter Aufruf.
             headers: { "X-FM-Fetch": "1" }
         })
             .then(function (a) { return a.text(); })
             .then(function (html) { laufend = null; austauschen(html); })
             .catch(function (f) {
                 if (f && f.name === "AbortError") { return; }
-                // Geht der Weg ueber fetch schief, wird normal abgeschickt -
-                // lieber ein Neuladen als ein Knopf, der nichts tut.
                 form.submit();
             });
     });
 
-    // ---------------------------------------------------------------------
-    // Das Fenster fuer den Verbindungstest
-    //
-    // Am Dokument statt am Knopf, aus demselben Grund: Nach einem Austausch
-    // ist der Knopf ein anderes Element.
-    // ---------------------------------------------------------------------
     document.addEventListener("click", function (e) {
         var ziel = e.target.closest ? e.target.closest("#fm-test-knopf, #fm-test-schliessen") : null;
         if (!ziel) { return; }
@@ -421,10 +529,6 @@
         ausgabe.textContent = "";
         fenster.style.display = "flex";
 
-        // Der Test laeuft als Datenstrom: Jede Zeile erscheint, sobald sie da
-        // ist. Ohne das Mitlesen saehe man mehrere Sekunden nichts und danach
-        // alles auf einmal - und wuesste bei einem Haenger nicht, wie weit es
-        // gekommen war.
         fetch("index.cgi?ajax=pruefen", { credentials: "same-origin" })
             .then(function (antwort) {
                 if (!antwort.body || !antwort.body.getReader) {

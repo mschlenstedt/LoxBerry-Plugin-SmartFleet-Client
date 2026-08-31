@@ -53,10 +53,11 @@
     </TMPL_IF>
     <tr><td><TMPL_VAR FM.LABEL_LETZTER_POLL></td><td><TMPL_VAR POLL_ALTER></td></tr>
     <tr><td><TMPL_VAR FM.LABEL_LETZTES_BACKUP></td><td><TMPL_VAR BACKUP_ALTER></td></tr>
+
     <tr><td><TMPL_VAR FM.LABEL_TUNNEL_PW></td>
-        <td><TMPL_IF NAME="TUNNEL_GESETZT"><TMPL_VAR FM.JA><TMPL_ELSE><TMPL_VAR FM.NEIN></TMPL_IF></td></tr>
+        <td><TMPL_IF NAME="TUNNEL_GESETZT"><span class="fm-tag-ok"><TMPL_VAR FM.JA></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.NEIN></span></TMPL_IF></td></tr>
     <tr><td><TMPL_VAR FM.LABEL_TUNNEL_ZUGRIFF></td>
-        <td><TMPL_IF NAME="TUNNEL_ERLAUBT"><TMPL_VAR FM.FREIGEGEBEN><TMPL_ELSE><TMPL_VAR FM.GESPERRT></TMPL_IF></td></tr>
+        <td><TMPL_IF NAME="TUNNEL_ERLAUBT"><span class="fm-tag-ok"><TMPL_VAR FM.FREIGEGEBEN></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.GESPERRT></span></TMPL_IF></td></tr>
   </table>
 
   <TMPL_IF NAME="TUNNEL_OFFEN">

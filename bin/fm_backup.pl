@@ -47,7 +47,10 @@ sub say_v {
     FM::Loxlog::inf($log, $_[0]);
 }
 
-$log = FM::Loxlog::start('backup', 'fm_backup.pl gestartet');
+sub log_oeffnen {
+    return if $log;
+    $log = FM::Loxlog::start('backup', 'Sicherung laeuft');
+}
 
 my $lock = FM::State::lock($dir, 'backup');
 if (!$lock) {
@@ -117,6 +120,7 @@ if (defined $frei && $frei < MIN_FREI) {
     FM::Events::add($dir, 'error', 'backup',
         sprintf('Zu wenig Platz: %d MB frei, %d MB noetig',
                 int($frei / 1048576), int(MIN_FREI() / 1048576)));
+    log_oeffnen();
     say_v(sprintf('Zu wenig Platz in der Ablage: %d MB frei', int($frei / 1048576)));
     exit 0;
 }
@@ -135,6 +139,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $base = FM::Miniserver::base_url($ms);
     my $cred = $ms->{Credentials_RAW};
 
+    log_oeffnen();
     say_v("Miniserver $msno: Auflisten");
     my $dirs = FM::Backup::Catalog::scope_dirs($scope);
     my ($dateien, $fehler) = FM::Backup::Fetch::walk($base, $cred, $dirs);

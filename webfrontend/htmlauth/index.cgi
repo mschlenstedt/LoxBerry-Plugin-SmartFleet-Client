@@ -17,8 +17,10 @@ use lib "$LoxBerry::System::lbpbindir/lib";
 
 use JSON::PP ();
 use File::Spec;
+use POSIX ();
 use FM::B64;
 use FM::Config;
+use FM::Pin;
 use FM::Settings;
 use FM::State;
 use FM::TunnelPw;
@@ -56,6 +58,8 @@ my $out = HTML::Template->new_scalar_ref(
 );
 %L = LoxBerry::System::readlanguage($out, 'language.ini');
 
+LoxBerry::System::readlanguage($out, undef, 1);
+
 my $now = time();
 
 sub esc {
@@ -81,9 +85,11 @@ sub alter_text {
 sub zeitpunkt_text {
     my ($ts) = @_;
     return '-' if !defined $ts;
-    my @g = gmtime($ts);
-    return sprintf('%04d-%02d-%02d %02d:%02d UTC',
-                   $g[5] + 1900, $g[4] + 1, $g[3], $g[2], $g[1]);
+    my @l = localtime($ts);
+    my $zone = POSIX::strftime("%Z", @l);
+    return sprintf('%04d-%02d-%02d %02d:%02d%s',
+                   $l[5] + 1900, $l[4] + 1, $l[3], $l[2], $l[1],
+                   (defined $zone && $zone ne '' ? " $zone" : ''));
 }
 
 sub enroll_fehlertext {
@@ -123,11 +129,36 @@ my $angemeldet = ($cfg->{site} && $cfg->{server}) ? 1 : 0;
 my $aktion = defined $POST->{aktion} ? $POST->{aktion} : '';
 my %BRAUCHT_ANMELDUNG = (setzen => 1, pruefen => 1, abmelden => 1);
 
-if (($cgi->param('ajax') || '') eq 'pruefen') {
+my $ajax = $POST->{ajax} || $cgi->param('ajax') || '';
+
+if ($ajax eq 'pin') {
+    my $antwort = { ok => 0 };
+    my $fehler  = LoxBerry::System::check_securepin($cgi->param('secpin'));
+    if (!defined $fehler) {
+        my $schein = eval { FM::Pin::ausstellen($configdir) };
+        $antwort = defined $schein ? { ok => 1, schein => $schein } : { ok => 0 };
+    }
+    elsif (int($fehler) == 3) {
+        $antwort = { ok => 0, gesperrt => 1 };
+    }
+    print "Content-Type: application/json; charset=utf-8\n";
+    print "Cache-Control: no-store\n\n";
+    print JSON::PP->new->encode($antwort);
+    exit 0;
+}
+
+my $freigegeben = FM::Pin::gueltig($configdir,
+                      ($POST->{schein} || $cgi->param('schein') || ''));
+
+if ($ajax eq 'pruefen') {
     print "Content-Type: text/plain; charset=utf-8\n";
     print "Cache-Control: no-store\n\n";
     $| = 1;
 
+    if (!$freigegeben) {
+        print $L{'FM.PIN_FEHLT'}, "\n";
+        exit 0;
+    }
     if (!$angemeldet) {
         print $L{'FM.MELDUNG_ERST_ANMELDEN'}, "\n";
         exit 0;
@@ -192,6 +223,11 @@ sub melde {
 my $ort = $MELDUNG_ORT{$aktion} || 'verbindung';
 my $aktion_kam = ($aktion ne '') ? 1 : 0;
 my $aktion_gemerkt = $aktion;
+
+if ($aktion ne '' && !$freigegeben) {
+    melde(0, $L{'FM.PIN_FEHLT'}, $ort);
+    $aktion = '';
+}
 
 if ($aktion ne '' && $BRAUCHT_ANMELDUNG{$aktion} && !$angemeldet) {
     melde(0, $L{'FM.MELDUNG_ERST_ANMELDEN'}, $ort);
@@ -451,7 +487,11 @@ if ($form eq 'logs') {
     );
 }
 
-$out->param(ANGEMELDET => $angemeldet);
+$out->param(
+    ANGEMELDET  => $angemeldet,
+    FREIGEGEBEN => ($freigegeben ? 1 : 0),
+    SCHEIN      => ($freigegeben ? ($POST->{schein} || $cgi->param('schein') || '') : ''),
+);
 
 $out->param(
     ZUSTAND_TEXT   => ($angemeldet ? $L{'FM.TAG_VERBUNDEN'} : $L{'FM.TAG_GETRENNT'}),
@@ -466,15 +506,18 @@ $out->param(
 );
 
 $out->param(
+    TUNNEL_ERLAUBT => $tunnel_erlaubt,
+    TUNNEL_GESETZT => $tunnel_gesetzt,
+    SITE_NAME      => ($cfg->{name} || $cfg->{site} || ''),
+);
+
+$out->param(
     BACKUP_STORE     => (defined $stg->{backup_store} ? $stg->{backup_store} : ''),
     COLLECT_INTERVAL => (defined $stg->{collect_interval} ? $stg->{collect_interval} : ''),
     SERVER_INTERVAL  => $server_interval,
-    TUNNEL_ERLAUBT   => $tunnel_erlaubt,
-    TUNNEL_GESETZT   => $tunnel_gesetzt,
     PW_VORSCHLAG     => (defined $tunnel_vorschlag ? $tunnel_vorschlag
                         : ($tunnel_gesetzt ? '*********' : '')),
-    SITE_NAME        => ($cfg->{name} || $cfg->{site} || ''),
-);
+) if $freigegeben;
 
 if (!$meldung && ($cgi->param('mo') || '')) {
     my $wo = $cgi->param('mo');
