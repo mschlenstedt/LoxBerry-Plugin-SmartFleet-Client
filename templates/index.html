@@ -45,6 +45,13 @@
 
 <TMPL_IF NAME="ANGEMELDET">
 
+  <TMPL_IF NAME="SYNC_FEHLER_DA">
+    <div class="lb-callout lb-callout-danger">
+      <div class="lb-callout-title"><TMPL_VAR FM.SYNC_FEHLER_TITEL></div>
+      <p><code><TMPL_VAR SYNC_FEHLER></code></p>
+    </div>
+  </TMPL_IF>
+
   <table class="lb-table">
     <tr><td><TMPL_VAR FM.LABEL_STANDORT></td><td><TMPL_VAR SITE_NAME></td></tr>
     <tr><td><TMPL_VAR FM.LABEL_SERVER></td><td><TMPL_VAR SERVER></td></tr>

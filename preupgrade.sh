@@ -10,9 +10,19 @@ tempfolder="$6"
 
 quelle="$lbhomedir/config/plugins/$pfolder"
 
-cp -p "$quelle/site.key"   "$tempfolder/" 2>/dev/null
-cp -p "$quelle/tunnel.key" "$tempfolder/" 2>/dev/null
-cp -p "$quelle/agent.json" "$tempfolder/" 2>/dev/null
+sicherung="$tempfolder/.fm-config"
+mkdir -p "$sicherung" 2>/dev/null
+
+if [ -d "$quelle" ]; then
+    for datei in "$quelle"/* "$quelle"/.[!.]*; do
+        [ -f "$datei" ] || continue
+        name=$(basename "$datei")
+        case "$name" in
+            *.lock|pin.session) continue ;;
+        esac
+        cp -p "$datei" "$sicherung/" 2>/dev/null
+    done
+fi
 
 exit 0
 

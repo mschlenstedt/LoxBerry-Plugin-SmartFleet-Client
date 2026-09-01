@@ -32,7 +32,7 @@ lauf() {
 }
 
 lauf perl "$BINDIR/fm_collect.pl" --dir "$CONFIGDIR"
-lauf perl "$BINDIR/fm_backup.pl"  --dir "$CONFIGDIR" --store "$DATADIR/backups"
+lauf perl "$BINDIR/fm_backup.pl"  --dir "$CONFIGDIR"
 lauf perl "$BINDIR/fm_sync.pl"    --dir "$CONFIGDIR"
 
 exit 0

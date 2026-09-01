@@ -11,6 +11,7 @@ use lib "$Bin/lib", "$Bin/../lib";
 use Getopt::Long;
 use JSON::PP;
 use FM::B64 qw(b64u_decode);
+use FM::Paths;
 use FM::Config;
 use FM::Loxlog;
 use FM::Settings;
@@ -28,6 +29,8 @@ my ($dir, $verbose, $mit_log);
 GetOptions('dir=s' => \$dir, 'verbose' => \$verbose, 'log' => \$mit_log)
     or die "Aufruf: fm_sync.pl --dir <konfigdir> [--verbose]\n";
 die "fm_sync: --dir fehlt\n" if !$dir;
+my $rt = FM::Paths::laufzeit($dir);
+FM::Paths::uebernehmen($dir);
 
 my $log;
 sub say_v {
@@ -36,7 +39,7 @@ sub say_v {
     FM::Loxlog::inf($log, $text);
 }
 
-my $lock = FM::State::lock($dir);
+my $lock = FM::State::lock($rt);
 if (!$lock) {
     say_v('Ein anderer Lauf ist noch aktiv - dieser beendet sich.');
     exit 0;
@@ -50,7 +53,7 @@ if (!$cfg->{site} || !$cfg->{server}) {
     exit 0;
 }
 
-my $state   = FM::State::load($dir);
+my $state   = FM::State::load($rt);
 my $keyfile = FM::Config::keyfile($dir);
 my $srv_pub = b64u_decode($cfg->{srv_pub});
 
@@ -70,9 +73,9 @@ if ($su && (!$state->{selftest_last} || $now - $state->{selftest_last} > 86400))
 system($^X, "$Bin/fm_tunnel.pl", '--dir', $dir, '--enforce');
 
 $state->{seq}++;
-my ($samples, $spool_offset) = FM::Sync::take_samples($dir);
+my ($samples, $spool_offset) = FM::Sync::take_samples($rt);
 
-my ($events, $ev_offset) = FM::Events::take($dir, FM::Events::MAX_PER_POLL());
+my ($events, $ev_offset) = FM::Events::take($rt, FM::Events::MAX_PER_POLL());
 
 my %body = (
     v       => 1,
@@ -91,25 +94,27 @@ my $headers  = FM::Sig::headers($keyfile, $cfg->{site}, 'POST', $sig_path, $body
 my ($st, $resp, $rh) = FM::Http::post_json("$cfg->{server}$path", $body, $headers);
 
 if ($st != 200) {
-    FM::State::save($dir, $state);
+    $state->{sync_fehler}    = "HTTP $st";
+    $state->{sync_fehler_at} = time();
+    FM::State::save($rt, $state);
     say_v("Server antwortet mit HTTP $st - naechster Versuch in einer Minute.");
     exit 0;
 }
 
 my $rsig = $rh->{'x-fm-sig'};
 if (!FM::Sig::verify_response($resp, $rsig, $srv_pub)) {
-    FM::State::save($dir, $state);
+    FM::State::save($rt, $state);
     die "fm_sync: die Antwortsignatur des Servers stimmt nicht - Antwort verworfen.\n";
 }
 
 my $ans = eval { JSON::PP->new->decode($resp) };
 if (!$ans) {
-    FM::State::save($dir, $state);
+    FM::State::save($rt, $state);
     die "fm_sync: der Server liefert kein gueltiges JSON.\n";
 }
 
 if ($ev_offset) {
-    FM::Events::truncate_to($dir, $ev_offset);
+    FM::Events::truncate_to($rt, $ev_offset);
 }
 
 $state->{desired} = ref($ans->{desired}) eq 'HASH' ? $ans->{desired} : {};
@@ -124,7 +129,7 @@ if ($spool_offset) {
               . 'der Rest geht beim naechsten Lauf erneut mit.');
     }
     else {
-        my $ok = FM::Spool::truncate_to($dir, $spool_offset);
+        my $ok = FM::Spool::truncate_to($rt, $spool_offset);
         say_v('Spool: Versatz verfallen - der Stapel geht erneut mit.') if !$ok;
     }
 }
@@ -179,7 +184,11 @@ my %HANDLER = (
 
 $state->{pending_acks} = run_jobs($ans->{jobs}, \%HANDLER, \&say_v);
 
-FM::State::save($dir, $state);
+$state->{sync_ok_at} = time();
+delete $state->{sync_fehler};
+delete $state->{sync_fehler_at};
+
+FM::State::save($rt, $state);
 say_v('Sync abgeschlossen, Sequenz ' . $state->{seq});
 exit 0;
 

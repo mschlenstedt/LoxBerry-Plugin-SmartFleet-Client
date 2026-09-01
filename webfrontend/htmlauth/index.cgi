@@ -17,8 +17,10 @@ use lib "$LoxBerry::System::lbpbindir/lib";
 
 use JSON::PP ();
 use File::Spec;
+use File::Path ();
 use POSIX ();
 use FM::B64;
+use FM::Paths;
 use FM::Config;
 use FM::Pin;
 use FM::Settings;
@@ -32,11 +34,12 @@ my $version = LoxBerry::System::pluginversion();
 my %L;
 
 my $configdir = $lbpconfigdir;
+
+my $rt = FM::Paths::laufzeit($configdir);
 my $cfg       = FM::Config::load($configdir);
 
 my $stg = {
     backup_store     => FM::Settings::get($configdir, 'backup_store',     $cfg),
-    collect_interval => FM::Settings::get($configdir, 'collect_interval', $cfg),
     tunnel_erlaubt   => FM::Settings::get($configdir, 'tunnel_erlaubt',   $cfg),
 };
 
@@ -126,7 +129,8 @@ sub enroll_fehlertext {
 
 my $angemeldet = ($cfg->{site} && $cfg->{server}) ? 1 : 0;
 
-my $aktion = defined $POST->{aktion} ? $POST->{aktion} : '';
+my $aktion = $cgi->param('aktion');
+$aktion = '' if !defined $aktion;
 my %BRAUCHT_ANMELDUNG = (setzen => 1, pruefen => 1, abmelden => 1);
 
 my $ajax = $POST->{ajax} || $cgi->param('ajax') || '';
@@ -135,7 +139,7 @@ if ($ajax eq 'pin') {
     my $antwort = { ok => 0 };
     my $fehler  = LoxBerry::System::check_securepin($cgi->param('secpin'));
     if (!defined $fehler) {
-        my $schein = eval { FM::Pin::ausstellen($configdir) };
+        my $schein = eval { FM::Pin::ausstellen($rt) };
         $antwort = defined $schein ? { ok => 1, schein => $schein } : { ok => 0 };
     }
     elsif (int($fehler) == 3) {
@@ -147,7 +151,7 @@ if ($ajax eq 'pin') {
     exit 0;
 }
 
-my $freigegeben = FM::Pin::gueltig($configdir,
+my $freigegeben = FM::Pin::gueltig($rt,
                       ($POST->{schein} || $cgi->param('schein') || ''));
 
 if ($ajax eq 'pruefen') {
@@ -264,6 +268,8 @@ if ($aktion eq 'enroll' && !$angemeldet) {
                 $stg->{backup_store} = File::Spec->catdir($lbpdatadir, 'backups');
                 eval { FM::Settings::save($configdir, $stg); 1 };
             }
+
+            eval { File::Path::make_path($stg->{backup_store}); 1 };
             melde(1, $L{'FM.MELDUNG_ENROLL_OK'}, $ort);
         }
         else {
@@ -295,17 +301,8 @@ if ($aktion eq 'einstellungen' || $aktion eq 'messwerte') {
     else {
         $stg->{backup_store} = $store if exists $POST->{store};
 
-        my $iv = defined $POST->{interval} ? $POST->{interval} : undef;
-        if (!defined $iv) {
-        }
-        elsif (do { $iv =~ s/\s+//g; $iv eq '' }) {
-            delete $stg->{collect_interval};
-        }
-        elsif ($iv =~ /\A[0-9]+\z/ && $iv >= 60 && $iv <= 86400) {
-            $stg->{collect_interval} = $iv + 0;
-        }
-        else {
-            melde(0, $L{'FM.MELDUNG_INTERVAL_UNGUELTIG'}, $ort);
+        if ($stg->{backup_store}) {
+            eval { File::Path::make_path($stg->{backup_store}); 1 };
         }
 
         if (!$meldung) {
@@ -378,18 +375,21 @@ if ($angemeldet) {
 
 my $server_interval = 300;
 {
-    my $state = FM::State::load($configdir);
+    my $state = FM::State::load($rt);
     my $d = ref($state->{desired}) eq 'HASH' ? $state->{desired} : {};
     my $t = ref($d->{telemetry}) eq 'HASH' ? $d->{telemetry} : {};
     $server_interval = $t->{interval} if $t->{interval} && $t->{interval} >= 60;
 }
 
 my $poll_alter;
+my $sync_fehler;
 {
-    my $f = File::Spec->catfile($configdir, 'state.json');
-    my @st = stat($f);
-    $poll_alter = @st ? ($now - $st[9]) : undef;
+    my $st = eval { FM::State::load($rt) } || {};
+    $poll_alter  = $st->{sync_ok_at} ? ($now - $st->{sync_ok_at}) : undef;
+    $sync_fehler = $st->{sync_fehler};
 }
+
+my $verbunden = ($angemeldet && defined $poll_alter && $poll_alter <= 600) ? 1 : 0;
 
 my $backup_alter;
 if ($stg->{backup_store} && -d $stg->{backup_store}) {
@@ -454,7 +454,7 @@ $navbar{30}{active} = 1 if $form eq 'logs';
 
 $out->param(FORM => $form);
 
-if ($form eq 'settings' && $angemeldet) {
+if ($form eq 'settings') {
     my $auswahl = eval {
         LoxBerry::Storage::get_storage_html(
             formid        => 'store',
@@ -474,12 +474,6 @@ if ($form eq 'settings' && $angemeldet) {
 }
 
 if ($form eq 'logs') {
-    my $stufen = eval { LoxBerry::Web::loglevel_select_html(FORMID => 'loglevel') };
-    $out->param(
-        LOGLEVEL_WAHL    => (defined $stufen ? $stufen : ''),
-        LOGLEVEL_WAHL_DA => ((defined $stufen && $stufen ne '') ? 1 : 0),
-    );
-
     my $liste = eval { LoxBerry::Web::loglist_html(PACKAGE => $lbpplugindir) };
     $out->param(
         LOGLIST    => (defined $liste ? $liste : ''),
@@ -494,8 +488,12 @@ $out->param(
 );
 
 $out->param(
-    ZUSTAND_TEXT   => ($angemeldet ? $L{'FM.TAG_VERBUNDEN'} : $L{'FM.TAG_GETRENNT'}),
-    ZUSTAND_KLASSE => ($angemeldet ? 'fm-tag-ok' : 'fm-tag-weg'),
+    ZUSTAND_TEXT   => (!$angemeldet ? $L{'FM.TAG_GETRENNT'}
+                     : $verbunden   ? $L{'FM.TAG_VERBUNDEN'}
+                     :                $L{'FM.TAG_KEIN_KONTAKT'}),
+    ZUSTAND_KLASSE => ($verbunden ? 'fm-tag-ok' : 'fm-tag-weg'),
+    SYNC_FEHLER    => (defined $sync_fehler ? $sync_fehler : ''),
+    SYNC_FEHLER_DA => (($angemeldet && !$verbunden && defined $sync_fehler) ? 1 : 0),
 );
 
 $out->param(NUR_MIT_SERVER => ($angemeldet ? '' : 'disabled'));
@@ -513,7 +511,6 @@ $out->param(
 
 $out->param(
     BACKUP_STORE     => (defined $stg->{backup_store} ? $stg->{backup_store} : ''),
-    COLLECT_INTERVAL => (defined $stg->{collect_interval} ? $stg->{collect_interval} : ''),
     SERVER_INTERVAL  => $server_interval,
     PW_VORSCHLAG     => (defined $tunnel_vorschlag ? $tunnel_vorschlag
                         : ($tunnel_gesetzt ? '*********' : '')),

@@ -11,11 +11,17 @@ tempfolder="$6"
 ziel="$lbhomedir/config/plugins/$pfolder"
 
 mkdir -p "$ziel" 2>/dev/null
+
 chmod 0775 "$ziel" 2>/dev/null
 
-cp -p "$tempfolder/site.key"   "$ziel/" 2>/dev/null
-cp -p "$tempfolder/tunnel.key" "$ziel/" 2>/dev/null
-cp -p "$tempfolder/agent.json" "$ziel/" 2>/dev/null
+sicherung="$tempfolder/.fm-config"
+
+if [ -d "$sicherung" ]; then
+    for datei in "$sicherung"/* "$sicherung"/.[!.]*; do
+        [ -f "$datei" ] || continue
+        cp -p "$datei" "$ziel/" 2>/dev/null
+    done
+fi
 
 exit 0
 

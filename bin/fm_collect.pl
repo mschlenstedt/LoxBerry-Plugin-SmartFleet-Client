@@ -10,6 +10,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib", "$Bin/../lib";
 use Getopt::Long;
 use Time::HiRes qw(time);
+use FM::Paths;
 use FM::Config;
 use FM::Settings;
 use FM::State;
@@ -23,6 +24,8 @@ my ($dir, $verbose);
 GetOptions('dir=s' => \$dir, 'verbose' => \$verbose)
     or die "Aufruf: fm_collect.pl --dir <konfigdir> [--verbose]\n";
 die "fm_collect: --dir fehlt\n" if !$dir;
+my $rt = FM::Paths::laufzeit($dir);
+FM::Paths::uebernehmen($dir);
 
 sub say_v { print "@_\n" if $verbose; }
 
@@ -48,7 +51,7 @@ my $get_miniservers;
     }
 }
 
-my $lock = FM::State::lock($dir, 'collect');
+my $lock = FM::State::lock($rt, 'collect');
 if (!$lock) {
     say_v('Ein anderer Sammellauf ist aktiv - dieser beendet sich.');
     exit 0;
@@ -60,13 +63,10 @@ if (!$cfg->{site}) {
     exit 0;
 }
 
-my $state = FM::State::load($dir);
+my $state = FM::State::load($rt);
 my $desired = ref($state->{desired}) eq 'HASH' ? $state->{desired} : {};
 my $tcfg = ref($desired->{telemetry}) eq 'HASH' ? $desired->{telemetry} : {};
 my $interval = $tcfg->{interval} && $tcfg->{interval} >= 60 ? $tcfg->{interval} : 300;
-
-my $lokal = FM::Settings::get($dir, 'collect_interval', $cfg);
-$interval = $lokal if $lokal && $lokal >= 60;
 
 my $now = time();
 if (!FM::Collect::due($state, $now, $interval)) {
@@ -75,7 +75,7 @@ if (!FM::Collect::due($state, $now, $interval)) {
 }
 $state->{collect_next} = int($now) + $interval;
 
-FM::State::save($dir, $state);
+FM::State::save($rt, $state);
 
 my $lb_metrics = FM::Catalog::select([ FM::Catalog::loxberry_all() ], $tcfg->{loxberry});
 my $lb_values  = {};
@@ -118,8 +118,8 @@ else {
 
 $state->{ms_ident} = $ident_cache;
 
-FM::Spool::append($dir, FM::Collect::build_record(int($now), $lb_values, \@ms_records));
-FM::State::save($dir, $state);
-say_v('Spool: ' . FM::Spool::size($dir) . ' Byte');
+FM::Spool::append($rt, FM::Collect::build_record(int($now), $lb_values, \@ms_records));
+FM::State::save($rt, $state);
+say_v('Spool: ' . FM::Spool::size($rt) . ' Byte');
 exit 0;
 

@@ -9,7 +9,7 @@ use warnings;
 use File::Spec;
 use JSON::PP;
 
-our @FELDER = qw(backup_store collect_interval tunnel_erlaubt);
+our @FELDER = qw(backup_store tunnel_erlaubt);
 
 sub _file { my ($dir) = @_; return File::Spec->catfile($dir, 'plugin.json'); }
 
@@ -29,10 +29,13 @@ sub load {
     return $out;
 }
 
+our %NUR_LOKAL = (backup_store => 1);
+
 sub get {
     my ($dir, $feld, $agentcfg) = @_;
     my $s = load($dir);
     return $s->{$feld} if exists $s->{$feld};
+    return undef if $NUR_LOKAL{$feld};
     return $agentcfg->{$feld} if ref($agentcfg) eq 'HASH' && exists $agentcfg->{$feld};
     return undef;
 }

@@ -221,20 +221,13 @@
   </TMPL_IF>
 </TMPL_IF>
 
-<form method="post" action="index.cgi">
-  <input type="hidden" name="form" value="settings">
-  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
-  <div class="lb-form-row">
-    <label class="lb-form-label" for="interval"><TMPL_VAR FM.LABEL_INTERVAL></label>
-    <div class="lb-form-field">
-      <input class="lb-input" type="text" id="interval" name="interval" value="<TMPL_VAR COLLECT_INTERVAL>" placeholder="<TMPL_VAR SERVER_INTERVAL>">
-    </div>
+<div class="lb-form-row">
+  <div class="lb-form-label"><TMPL_VAR FM.LABEL_INTERVAL></div>
+  <div class="lb-form-field">
+    <span id="fm-interval"><TMPL_VAR SERVER_INTERVAL> <TMPL_VAR FM.SEKUNDEN></span>
   </div>
-  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_INTERVAL> <TMPL_VAR SERVER_INTERVAL> <TMPL_VAR FM.SEKUNDEN>.</div>
-  <div class="lb-actions">
-    <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="messwerte"><TMPL_VAR FM.BTN_SPEICHERN></button>
-  </div>
-</form>
+</div>
+<div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_INTERVAL></div>
 
 <div class="lb-section-title" id="testen"><TMPL_VAR FM.PRUEFUNG_TITEL></div>
 
@@ -434,7 +427,7 @@
         riegelLaeuft = new AbortController();
 
         var daten = new FormData(form);
-        daten.append("aktion", an ? "tunnel_erlaubt_ein" : "tunnel_erlaubt_aus");
+        daten.set("aktion", an ? "tunnel_erlaubt_ein" : "tunnel_erlaubt_aus");
 
         fetch(form.action, {
             method: "POST", body: daten, credentials: "same-origin",
@@ -495,7 +488,7 @@
 
         var daten = new FormData(form);
         var knopf = e.submitter;
-        if (knopf && knopf.name) { daten.append(knopf.name, knopf.value); }
+        if (knopf && knopf.name) { daten.set(knopf.name, knopf.value); }
 
         if (laufend) { laufend.abort(); }
         laufend = new AbortController();
@@ -508,7 +501,18 @@
             headers: { "X-FM-Fetch": "1" }
         })
             .then(function (a) { return a.text(); })
-            .then(function (html) { laufend = null; austauschen(html); })
+            .then(function (html) {
+                laufend = null;
+
+                var was = daten.get("aktion");
+                if (was === "enroll" || was === "abmelden") {
+                    location.replace("index.cgi?form=settings&schein="
+                        + encodeURIComponent(daten.get("schein") || ""));
+                    return;
+                }
+
+                austauschen(html);
+            })
             .catch(function (f) {
                 if (f && f.name === "AbortError") { return; }
                 form.submit();
@@ -529,7 +533,10 @@
         ausgabe.textContent = "";
         fenster.style.display = "flex";
 
-        fetch("index.cgi?ajax=pruefen", { credentials: "same-origin" })
+        var schein = (document.querySelector("input[name=schein]") || {}).value || "";
+
+        fetch("index.cgi?ajax=pruefen&schein=" + encodeURIComponent(schein),
+              { credentials: "same-origin" })
             .then(function (antwort) {
                 if (!antwort.body || !antwort.body.getReader) {
                     return antwort.text().then(function (t) { ausgabe.textContent = t; });

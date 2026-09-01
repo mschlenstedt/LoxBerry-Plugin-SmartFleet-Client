@@ -11,6 +11,7 @@ use lib "$Bin/lib", "$Bin/../lib";
 use Getopt::Long;
 use File::Spec;
 
+use FM::Paths;
 use FM::Config;
 use FM::Settings;
 use FM::TunnelPw;
@@ -31,6 +32,9 @@ GetOptions(
 ) or die "Aufruf: fm_tunnel.pl --dir <konfigdir> --start --nonce <n> --ts <t> --antwort <hex> | --stop | --status | --enforce [--verbose]\n";
 
 die "fm_tunnel: --dir fehlt\n" if !$dir;
+my $rt = FM::Paths::laufzeit($dir);
+FM::Paths::uebernehmen($dir);
+
 my $anzahl_modi = ($start ? 1 : 0) + ($stop ? 1 : 0) + ($status ? 1 : 0) + ($enforce ? 1 : 0);
 die "fm_tunnel: genau eines von --start/--stop/--status/--enforce angeben\n" if $anzahl_modi != 1;
 
@@ -48,7 +52,7 @@ if ($stop) {
     my $war_da = -e FM::Tunnel::PIDFILE();
     FM::Tunnel::stop();
     if ($war_da) {
-        FM::Events::add($dir, 'info', FM::Tunnel::EVENT_SRC_CLOSED,
+        FM::Events::add($rt, 'info', FM::Tunnel::EVENT_SRC_CLOSED,
             'Support-Tunnel geschlossen (manuell)');
     }
     say_v('Tunnel gestoppt (falls einer lief).');
@@ -72,7 +76,7 @@ if ($enforce) {
     my $ergebnis = FM::Tunnel::durchsetzen();
     if ($ergebnis->{status} eq 'geschlossen') {
         my $grund = defined $ergebnis->{grund} ? $ergebnis->{grund} : 'unbekannt';
-        FM::Events::add($dir, 'info', FM::Tunnel::EVENT_SRC_CLOSED,
+        FM::Events::add($rt, 'info', FM::Tunnel::EVENT_SRC_CLOSED,
             "Support-Tunnel geschlossen ($grund)");
         say_v("Tunnel beendet: $grund");
     }
@@ -121,7 +125,7 @@ my ($ok, $ergebnis) = FM::Tunnel::oeffnen(
 );
 
 if ($ok) {
-    if (!FM::Events::add($dir, 'info', FM::Tunnel::EVENT_SRC_URL, $ergebnis)) {
+    if (!FM::Events::add($rt, 'info', FM::Tunnel::EVENT_SRC_URL, $ergebnis)) {
         say_v('URL-Meldung fehlgeschlagen - Tunnel wird wieder geschlossen');
         FM::Tunnel::stop();
         print "meldung_fehlgeschlagen\n";

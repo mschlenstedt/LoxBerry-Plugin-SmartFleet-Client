@@ -16,7 +16,9 @@ use Cwd qw(getcwd);
 use FindBin qw($Bin);
 use lib "$Bin/lib", "$Bin/../lib";
 
+use FM::Paths;
 use FM::Config;
+use FM::Settings;
 use FM::State;
 use FM::Loxlog;
 use FM::Cron;
@@ -39,7 +41,17 @@ GetOptions(
     'verbose' => \$verbose,
 ) or die "Aufruf: fm_backup.pl --dir <konfigdir> --store <ablage> [--msno N] [--force] [--dry-run] [--verbose]\n";
 die "fm_backup: --dir fehlt\n"   if !$dir;
-die "fm_backup: --store fehlt\n" if !$store;
+my $rt = FM::Paths::laufzeit($dir);
+FM::Paths::uebernehmen($dir);
+
+if (!$store) {
+    my $cfg0 = FM::Config::load($dir);
+    $store = FM::Settings::get($dir, 'backup_store', $cfg0);
+}
+if (!$store) {
+    print "Keine Sicherungsablage eingestellt - es wird nicht gesichert." . chr(10) if $verbose;
+    exit 0;
+}
 
 my $log;
 sub say_v {
@@ -52,13 +64,13 @@ sub log_oeffnen {
     $log = FM::Loxlog::start('backup', 'Sicherung laeuft');
 }
 
-my $lock = FM::State::lock($dir, 'backup');
+my $lock = FM::State::lock($rt, 'backup');
 if (!$lock) {
     say_v('Ein Backup laeuft bereits - die Sperre ist belegt.');
     exit 0;
 }
 
-my $state = FM::State::load($dir);
+my $state = FM::State::load($rt);
 my $now   = time();
 
 my $desired = ref($state->{desired}) eq 'HASH' ? $state->{desired} : {};
@@ -101,13 +113,13 @@ my $encrypt = $bcfg->{encrypt} ? 1 : 0;
 my $pw      = $cfg->{tunnel_password};
 
 if ($encrypt && (!defined $pw || $pw eq '')) {
-    FM::Events::add($dir, 'error', 'backup',
+    FM::Events::add($rt, 'error', 'backup',
         'Verschluesselung verlangt, aber kein Passwort hinterlegt');
     say_v('Verschluesselung verlangt, aber kein Passwort hinterlegt.');
     exit 0;
 }
 if ($encrypt && !FM::Backup::Pack::have_7z()) {
-    FM::Events::add($dir, 'error', 'backup',
+    FM::Events::add($rt, 'error', 'backup',
         'Verschluesselung verlangt, aber 7z fehlt - es wird NICHT unverschluesselt gesichert');
     say_v('Verschluesselung verlangt, aber 7z fehlt.');
     exit 0;
@@ -117,7 +129,7 @@ aufraeumen($store, $now);
 
 my $frei = freier_platz($store);
 if (defined $frei && $frei < MIN_FREI) {
-    FM::Events::add($dir, 'error', 'backup',
+    FM::Events::add($rt, 'error', 'backup',
         sprintf('Zu wenig Platz: %d MB frei, %d MB noetig',
                 int($frei / 1048576), int(MIN_FREI() / 1048576)));
     log_oeffnen();
@@ -127,7 +139,7 @@ if (defined $frei && $frei < MIN_FREI) {
 
 if (!$dry) {
     $state->{backup_last} = $now;
-    FM::State::save($dir, $state);
+    FM::State::save($rt, $state);
 }
 
 my $fehler_gesamt = 0;
@@ -182,7 +194,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     }
 
     if (!@erfasst) {
-        FM::Events::add($dir, 'error', 'backup',
+        FM::Events::add($rt, 'error', 'backup',
                         'Keine einzige Datei holbar', msno => $msno);
         say_v("Miniserver $msno: keine einzige Datei holbar");
         $fehler_gesamt++;
@@ -195,7 +207,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
                            scalar(@fehlend) + scalar(@erfasst));
         $text .= sprintf(', %d Verzeichnisse nicht lesbar', scalar @$fehler)
             if @$fehler;
-        FM::Events::add($dir, 'warn', 'backup', $text, msno => $msno);
+        FM::Events::add($rt, 'warn', 'backup', $text, msno => $msno);
         say_v("Miniserver $msno: $text");
     }
 
