@@ -32,6 +32,16 @@ sub base_url {
     return $transport . '://' . $ms->{IPAddress} . ':' . $port;
 }
 
+my %WAHR = map { $_ => 1 } qw(true yes on enabled enable 1 check checked select selected);
+
+sub ist_lokal {
+    my ($ms) = @_;
+    my $v = $ms->{UseCloudDNS};
+    return 1 if !defined $v || $v eq '';
+    $v =~ s/^\s+|\s+$//g;
+    return $WAHR{lc $v} ? 0 : 1;
+}
+
 sub ll_value {
     my ($raw) = @_;
     return undef if !defined $raw || $raw eq '';

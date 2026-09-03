@@ -103,8 +103,15 @@ if (!$ok_lb) {
 }
 
 my %miniservers = LoxBerry::System::get_miniservers();
+
+for my $msno (keys %miniservers) {
+    next if FM::Miniserver::ist_lokal($miniservers{$msno});
+    say_v("Miniserver $msno: per Cloud DNS angebunden - wird nicht gesichert");
+    delete $miniservers{$msno};
+}
+
 if (!%miniservers) {
-    say_v('Kein Miniserver konfiguriert.');
+    say_v('Kein lokal angebundener Miniserver konfiguriert.');
     exit 0;
 }
 

@@ -97,6 +97,13 @@ my $ms_metrics = FM::Catalog::select([ FM::Catalog::miniserver_all() ], $tcfg->{
 my $want_inventory = (exists $tcfg->{inventory} && !$tcfg->{inventory}) ? 0 : 1;
 
 my %miniservers = $get_miniservers->();
+
+for my $msno (keys %miniservers) {
+    next if FM::Miniserver::ist_lokal($miniservers{$msno});
+    say_v("Miniserver $msno: per Cloud DNS angebunden - wird nicht gemeldet");
+    delete $miniservers{$msno};
+}
+
 my @ms_records;
 
 my $ident_cache = ref($state->{ms_ident}) eq 'HASH' ? $state->{ms_ident} : {};
