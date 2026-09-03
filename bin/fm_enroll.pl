@@ -162,6 +162,9 @@ stirb("fm_enroll: das Zertifikat traegt einen fremden Schluessel - Abbruch")
 
 $name = $ans->{name} if defined $ans->{name} && $ans->{name} ne '';
 
+my $partner_name = (defined $ans->{partner_name} && $ans->{partner_name} ne '')
+    ? $ans->{partner_name} : $ca_payload->{sub};
+
 versuchen(sub { FM::Config::save($dir, {
     %$cfg,
     site        => $ans->{site},
@@ -171,6 +174,7 @@ versuchen(sub { FM::Config::save($dir, {
     chain       => $ans->{chain},
     srv_pub     => $srv_leaf->{pub},
     partner     => $ca_payload->{sub},
+    partner_name => $partner_name,
     enrolled_at => time(),
 }) });
 

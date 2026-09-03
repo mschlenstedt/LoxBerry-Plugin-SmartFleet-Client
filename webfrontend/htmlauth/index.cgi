@@ -522,6 +522,7 @@ $out->param(
     TUNNEL_ERLAUBT => $tunnel_erlaubt,
     TUNNEL_GESETZT => $tunnel_gesetzt,
     SITE_NAME      => ($cfg->{name} || $cfg->{site} || ''),
+    PARTNER_NAME   => ($cfg->{partner_name} || $cfg->{partner} || ''),
 );
 
 $out->param(
@@ -559,6 +560,7 @@ if ($angemeldet) {
 
     $out->param(
         SITE_NAME      => ($cfg->{name} || $cfg->{site}),
+        PARTNER_NAME   => ($cfg->{partner_name} || $cfg->{partner} || ''),
         SERVER         => $cfg->{server},
         SERVER_URL     => $server . '/ui/index.php',
         HAT_ENROLLED   => ($cfg->{enrolled_at} ? 1 : 0),
