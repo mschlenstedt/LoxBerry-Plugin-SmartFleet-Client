@@ -121,6 +121,9 @@ sub identity {
         project             => $i->{projectName},
         device_monitor_uuid => $i->{deviceMonitor},
         controls            => (ref $d->{controls} eq 'HASH' ? scalar(keys %{ $d->{controls} }) : 0),
+        location            => $i->{location},
+        latitude            => $i->{latitude},
+        longitude           => $i->{longitude},
     };
 }
 

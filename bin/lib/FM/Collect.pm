@@ -85,11 +85,14 @@ sub miniserver_record {
 
     $rec{reachable} = defined $reachable ? $reachable : 0;
     $rec{ident} = {
-        name     => $cached->{name},
-        serial   => $cached->{serial},
-        mstype   => $cached->{mstype},
-        project  => $cached->{project},
-        controls => $cached->{controls},
+        name      => $cached->{name},
+        serial    => $cached->{serial},
+        mstype    => $cached->{mstype},
+        project   => $cached->{project},
+        controls  => $cached->{controls},
+        location  => $cached->{location},
+        latitude  => $cached->{latitude},
+        longitude => $cached->{longitude},
     };
     return (\%rec, \@missing);
 }
