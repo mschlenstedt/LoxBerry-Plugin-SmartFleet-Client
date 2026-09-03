@@ -98,12 +98,14 @@ sub miniserver_record {
 }
 
 sub build_record {
-    my ($now, $lb, $ms) = @_;
-    return {
+    my ($now, $lb, $ms, $lb_name) = @_;
+    my %rec = (
         ts => $now + 0,
         lb => ($lb && ref($lb) eq 'HASH' ? $lb : {}),
         ms => ($ms && ref($ms) eq 'ARRAY' ? $ms : []),
-    };
+    );
+    $rec{lb_name} = $lb_name if defined $lb_name && $lb_name ne '';
+    return \%rec;
 }
 
 1;

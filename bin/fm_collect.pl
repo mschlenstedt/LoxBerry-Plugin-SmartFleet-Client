@@ -31,18 +31,20 @@ sub say_v { print "@_\n" if $verbose; }
 
 my $lbwebserverport;
 my $get_miniservers;
+my $lbfriendlyname;
 {
     my $ok = eval {
         require LoxBerry::System;
         {
             no strict 'refs';
-            for my $f (qw(lbwebserverport get_miniservers)) {
+            for my $f (qw(lbwebserverport get_miniservers lbfriendlyname)) {
                 die "LoxBerry::System::$f fehlt\n"
                     if !defined &{"LoxBerry::System::$f"};
             }
         }
         $lbwebserverport = \&LoxBerry::System::lbwebserverport;
         $get_miniservers = \&LoxBerry::System::get_miniservers;
+        $lbfriendlyname  = \&LoxBerry::System::lbfriendlyname;
         1;
     };
     if (!$ok) {
@@ -125,7 +127,7 @@ else {
 
 $state->{ms_ident} = $ident_cache;
 
-FM::Spool::append($rt, FM::Collect::build_record(int($now), $lb_values, \@ms_records));
+FM::Spool::append($rt, FM::Collect::build_record(int($now), $lb_values, \@ms_records, $lbfriendlyname->()));
 FM::State::save($rt, $state);
 say_v('Spool: ' . FM::Spool::size($rt) . ' Byte');
 exit 0;
