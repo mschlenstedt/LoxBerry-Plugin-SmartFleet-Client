@@ -88,7 +88,7 @@ my %body = (
 $body{selftest} = $selftest if $selftest;
 my $body = JSON::PP->new->canonical->encode(\%body);
 
-my $path     = '/api/v1/sync';
+my $path     = '/api/sync.php';
 my $sig_path = ($cfg->{path_prefix} || '') . $path;
 my $headers  = FM::Sig::headers($keyfile, $cfg->{site}, 'POST', $sig_path, $body);
 my ($st, $resp, $rh) = FM::Http::post_json("$cfg->{server}$path", $body, $headers);

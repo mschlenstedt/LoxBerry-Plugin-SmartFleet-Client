@@ -30,7 +30,7 @@ sub _laden {
 }
 
 sub start {
-    my ($name, $ueber) = @_;
+    my ($name, $ueber, %opts) = @_;
     return undef if !_laden();
 
     local $SIG{__WARN__} = sub { };
@@ -42,7 +42,7 @@ sub start {
     my $log = eval {
         LoxBerry::Log->new(
             name    => $name,
-            loglevel => _loglevel(),
+            loglevel => $opts{force_debug} ? 7 : _loglevel(),
             package => $LoxBerry::System::lbpplugindir,
             addtime => 1,
         );

@@ -43,6 +43,9 @@ my $stg = {
     tunnel_erlaubt   => FM::Settings::get($configdir, 'tunnel_erlaubt',   $cfg),
 };
 
+my $backup_store_anzeige = $stg->{backup_store}
+    || File::Spec->catdir($lbpdatadir, 'backups');
+
 my %SEITEN = (
     status   => 'index.html',
     settings => 'settings.html',
@@ -106,8 +109,8 @@ sub enroll_fehlertext {
         [ qr/Fingerprint der Partner-CA/,       'CODE_ANDERER_SERVER' ],
         [ qr/Serverkette ist ungueltig/,        'SERVER_UNBEKANNT' ],
         [ qr/fremden Schluessel|Zertifikat ist ungueltig/, 'SERVER_UNBEKANNT' ],
-        [ qr/hello antwortet mit HTTP 404|enroll antwortet mit HTTP 404/, 'ADRESSE_FALSCH' ],
-        [ qr/antwortet mit HTTP 4\d\d|Server meldet Zustand/, 'CODE_VERBRAUCHT' ],
+        [ qr/hello antwortet mit HTTP 4\d\d/,   'ADRESSE_FALSCH' ],
+        [ qr/enroll antwortet mit HTTP 4\d\d|Server meldet Zustand/, 'CODE_VERBRAUCHT' ],
         [ qr/antwortet mit HTTP 599/,           'KEIN_NETZ'    ],
         [ qr/antwortet mit HTTP 5\d\d/,         'SERVER_FEHLER' ],
         [ qr/IO::Socket::SSL fehlt/,            'KEIN_SSL'     ],
@@ -439,6 +442,18 @@ if (($ENV{REQUEST_METHOD} || '') eq 'POST'
     exit 0;
 }
 
+if (($ENV{HTTP_X_FM_FETCH} || '') && $aktion_kam
+    && ($aktion_gemerkt eq 'enroll' || $aktion_gemerkt eq 'abmelden')) {
+    print "Content-Type: application/json; charset=utf-8\n";
+    print "Cache-Control: no-store\n\n";
+    print JSON::PP->new->encode({
+        mo => ($meldung ? $meldung->{wo}                       : ''),
+        mk => ($meldung ? ($meldung->{ok} ? 1 : 0)              : 0),
+        ms => ($meldung ? FM::B64::b64u_encode($meldung->{text}) : ''),
+    });
+    exit 0;
+}
+
 our %navbar;
 $navbar{10}{Name}   = $L{'FM.NAV_STATUS'};
 $navbar{10}{URL}    = 'index.cgi';
@@ -459,7 +474,7 @@ if ($form eq 'settings') {
         LoxBerry::Storage::get_storage_html(
             formid        => 'store',
             label         => $L{'FM.LABEL_BACKUP_STORE'},
-            currentpath   => (defined $stg->{backup_store} ? $stg->{backup_store} : ''),
+            currentpath   => $backup_store_anzeige,
             type_all      => 1,
             custom_folder => 1,
             readwriteonly => 1,
@@ -510,7 +525,7 @@ $out->param(
 );
 
 $out->param(
-    BACKUP_STORE     => (defined $stg->{backup_store} ? $stg->{backup_store} : ''),
+    BACKUP_STORE     => $backup_store_anzeige,
     SERVER_INTERVAL  => $server_interval,
     PW_VORSCHLAG     => (defined $tunnel_vorschlag ? $tunnel_vorschlag
                         : ($tunnel_gesetzt ? '*********' : '')),

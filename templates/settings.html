@@ -24,6 +24,28 @@
 .lb-callout.lb-callout-danger {
     border-left: 4px solid var(--lb-danger, #c62828);
 }
+
+/* Popup fuer das Ergebnis einer Aktion (Kopplung, Abmelden, Tunnel-Passwort,
+   ...) - zusaetzlich zum Kasten, der ohnehin an Ort und Stelle im Formular
+   stehen bleibt. Der Kasten alleine liess sich zu leicht uebersehen (Kopplung
+   scheiterte, ohne dass etwas auffiel).
+
+   lb-modal ist die Popup-Komponente des Design Systems selbst (natives
+   <dialog>, components.css) - dasselbe Muster wie das Testmail-Fenster in
+   templates/system/mailserver.html des Cores: showModal()/close(), keine
+   eigene Overlay-Mechanik. Zentriert sich selbst, sperrt den Hintergrund
+   (::backdrop) und bleibt offen, bis der Schliessen-Knopf (oder Esc) es
+   schliesst - kein Selbst-Zuklappen nach einer Frist. */
+.fm-popup-titel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 1.15rem;
+}
+.fm-popup-titel .pi { font-size: 1.4rem; }
+.fm-popup-erfolg .pi { color: var(--lb-success, #2e7d32); }
+.fm-popup-fehler .pi { color: var(--lb-danger, #c62828); }
 </style>
 
 <div class="lb-content">
@@ -82,9 +104,9 @@
 
 <TMPL_IF NAME="MELDUNG_VERBINDUNG_DA">
   <TMPL_IF NAME="MELDUNG_VERBINDUNG_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_VERBINDUNG_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -114,9 +136,9 @@
 
 <TMPL_IF NAME="MELDUNG_FERNWARTUNG_DA">
   <TMPL_IF NAME="MELDUNG_FERNWARTUNG_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_FERNWARTUNG_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -149,9 +171,9 @@
 
 <TMPL_IF NAME="MELDUNG_PASSWORT_DA">
   <TMPL_IF NAME="MELDUNG_PASSWORT_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_PASSWORT_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -185,9 +207,9 @@
 
 <TMPL_IF NAME="MELDUNG_SICHERUNGEN_DA">
   <TMPL_IF NAME="MELDUNG_SICHERUNGEN_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_SICHERUNGEN_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -215,9 +237,9 @@
 
 <TMPL_IF NAME="MELDUNG_MESSWERTE_DA">
   <TMPL_IF NAME="MELDUNG_MESSWERTE_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_MESSWERTE_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -233,9 +255,9 @@
 
 <TMPL_IF NAME="MELDUNG_TESTEN_DA">
   <TMPL_IF NAME="MELDUNG_TESTEN_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_TESTEN_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -255,13 +277,24 @@
   </div>
 </div>
 
+<dialog id="fm-popup" class="lb-modal" style="max-width:min(480px,92vw);"
+        data-titel-erfolg="<TMPL_VAR FM.POPUP_TITEL_ERFOLG>" data-titel-fehler="<TMPL_VAR FM.POPUP_TITEL_FEHLER>">
+  <div class="lb-modal-header" style="display:flex; justify-content:space-between; align-items:center;">
+    <h2 class="fm-popup-titel" id="fm-popup-titel"><i class="pi" id="fm-popup-icon"></i> <span id="fm-popup-titeltext"></span></h2>
+    <button type="button" class="lb-btn lb-btn-sm" onclick="document.getElementById('fm-popup').close();">&times;</button>
+  </div>
+  <div class="lb-modal-content" style="text-align:left;">
+    <p id="fm-popup-text" style="margin:0;"></p>
+  </div>
+</dialog>
+
 <div class="lb-section-title" id="trennen"><TMPL_VAR FM.ABMELDEN_TITEL></div>
 
 <TMPL_IF NAME="MELDUNG_TRENNEN_DA">
   <TMPL_IF NAME="MELDUNG_TRENNEN_OK">
-    <div class="lb-callout"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
   <TMPL_ELSE>
-    <div class="lb-callout lb-callout-warning"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_TRENNEN_TEXT></p></div>
   </TMPL_IF>
 </TMPL_IF>
 
@@ -463,6 +496,33 @@
             if (alt && frisch) { alt.replaceWith(frisch); }
         }
         skripteNachziehen();
+        zeigePopups();
+    }
+
+    function zeigePopups() {
+        var quellen = document.querySelectorAll(".fm-popup-quelle");
+        for (var i = 0; i < quellen.length; i++) {
+            var el = quellen[i];
+            if (el.dataset.fmPopupGezeigt) { continue; }
+            el.dataset.fmPopupGezeigt = "1";
+            zeigePopup(el.textContent.trim(), el.dataset.fmOk === "1");
+            break;
+        }
+    }
+
+    function zeigePopup(text, erfolg) {
+        if (!text) { return; }
+        var dialog = document.getElementById("fm-popup");
+        if (!dialog || typeof dialog.showModal !== "function") { return; }
+
+        dialog.classList.toggle("fm-popup-erfolg", erfolg);
+        dialog.classList.toggle("fm-popup-fehler", !erfolg);
+        document.getElementById("fm-popup-icon").className = "pi " + (erfolg ? "pi-check-circle" : "pi-times-circle");
+        document.getElementById("fm-popup-titeltext").textContent =
+            erfolg ? dialog.dataset.titelErfolg : dialog.dataset.titelFehler;
+        document.getElementById("fm-popup-text").textContent = text;
+
+        dialog.showModal();
     }
 
     function skripteNachziehen() {
@@ -501,17 +561,27 @@
             headers: { "X-FM-Fetch": "1" }
         })
             .then(function (a) { return a.text(); })
-            .then(function (html) {
+            .then(function (antwort) {
                 laufend = null;
 
                 var was = daten.get("aktion");
                 if (was === "enroll" || was === "abmelden") {
-                    location.replace("index.cgi?form=settings&schein="
-                        + encodeURIComponent(daten.get("schein") || ""));
+                    var ziel = "index.cgi?form=settings&schein="
+                        + encodeURIComponent(daten.get("schein") || "");
+                    try {
+                        var m = JSON.parse(antwort);
+                        if (m && m.mo) {
+                            ziel += "&mo=" + encodeURIComponent(m.mo)
+                                 +  "&mk=" + (m.mk ? "1" : "0")
+                                 +  "&ms=" + encodeURIComponent(m.ms || "");
+                        }
+                    } catch (fehler) {
+                    }
+                    location.replace(ziel);
                     return;
                 }
 
-                austauschen(html);
+                austauschen(antwort);
             })
             .catch(function (f) {
                 if (f && f.name === "AbortError") { return; }
@@ -565,6 +635,8 @@
             fenster.style.display = "none";
         }
     });
+
+    zeigePopups();
 })();
 </script>
 

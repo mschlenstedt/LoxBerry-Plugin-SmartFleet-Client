@@ -89,7 +89,7 @@ sub send_one {
     my $meta = $offen->{meta};
     my $zip  = File::Spec->catfile($offen->{dir}, 'backup.zip');
 
-    my ($st, $ans) = _post($cfg, $keyfile, '/api/v1/backup/init', {
+    my ($st, $ans) = _post($cfg, $keyfile, '/api/backup/init.php', {
         msno => $meta->{msno}, ts => $meta->{ts},
         scope => _scope_string($meta->{scope}),
         fingerprint => $meta->{fingerprint},
@@ -112,7 +112,7 @@ sub send_one {
     my $gesamt = chunk_count($meta->{size});
 
     if ($n >= $gesamt) {
-        my ($cs, $ca) = _post($cfg, $keyfile, '/api/v1/backup/complete',
+        my ($cs, $ca) = _post($cfg, $keyfile, '/api/backup/complete.php',
                               { upload => $ans->{upload} });
         if ($cs == 200) {
             $meta->{uploaded} = 1;
@@ -131,7 +131,7 @@ sub send_one {
         $stueck = substr($stueck, 0, $srv_chunk);
     }
 
-    my ($ps, $pa) = _post($cfg, $keyfile, '/api/v1/backup/chunk', {
+    my ($ps, $pa) = _post($cfg, $keyfile, '/api/backup/chunk.php', {
         upload => $ans->{upload}, n => $n,
         data => encode_base64($stueck, ''),
     });

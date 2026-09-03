@@ -68,6 +68,10 @@ sub decode {
     if (defined $payload->{tier}) {
         die "FM::Cert: Feld 'tier' muss ein String sein\n" if !_is_json_string($payload->{tier});
     }
+    if (defined $payload->{max_standorte}) {
+        die "FM::Cert: Feld 'max_standorte' muss eine Zahl sein\n"
+            if !_is_json_number($payload->{max_standorte});
+    }
     die "FM::Cert: unbekannter typ\n"   if !$VALID_TYP{ $payload->{typ} };
     die "FM::Cert: nur Formatversion 1\n" if $payload->{v} != 1;
     return $payload;

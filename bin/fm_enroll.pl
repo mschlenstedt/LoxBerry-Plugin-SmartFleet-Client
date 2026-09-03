@@ -40,80 +40,129 @@ GetOptions('dir=s' => \$dir, 'code=s' => \$code, 'force' => \$force)
 die "fm_enroll: --dir fehlt\n"  if !$dir;
 die "fm_enroll: --code fehlt\n" if !$code;
 
-my $log = FM::Loxlog::start('connect', 'Verbindung zum Server wird aufgebaut');
+my $log = FM::Loxlog::start(
+    'connect', 'Verbindung zum Server wird aufgebaut',
+    force_debug => 1,
+);
 sub sag {
     my $text = "@_";
     print "$text\n";
     FM::Loxlog::inf($log, $text);
 }
-
-my $cfg = FM::Config::load($dir);
-if ($cfg->{site} && !$force) {
-    die "fm_enroll: dieser Standort ist bereits angemeldet ($cfg->{site}).\n"
-      . "Mit --force wird die Anmeldung ersetzt - der alte Standort bleibt auf dem\n"
-      . "Server bestehen und muss dort geloescht werden.\n";
+sub diag {
+    FM::Loxlog::deb($log, "@_");
 }
 
-my $p = FM::Config::parse_code($code);
-FM::Loxlog::deb($log, "Code entschluesselt, Serveradresse: $p->{url}");
+sub stirb {
+    my ($text) = @_;
+    FM::Loxlog::err($log, $text);
+    FM::Loxlog::ende($log);
+    die "$text\n";
+}
+
+sub kurz {
+    my ($geheimnis) = @_;
+    return '(leer)' if !defined $geheimnis || $geheimnis eq '';
+    return length($geheimnis) <= 12
+        ? substr($geheimnis, 0, 4) . '...'
+        : substr($geheimnis, 0, 8) . '...(' . length($geheimnis) . ' Zeichen)';
+}
+
+sub versuchen {
+    my ($code) = @_;
+    my @erg = eval { $code->() };
+    if ($@) {
+        (my $grund = $@) =~ s/\s+\z//;
+        stirb($grund);
+    }
+    return wantarray ? @erg : $erg[0];
+}
+
+my $cfg = FM::Config::load($dir);
+diag("Konfigurationsverzeichnis: $dir");
+if ($cfg->{site} && !$force) {
+    stirb("fm_enroll: dieser Standort ist bereits angemeldet ($cfg->{site}).\n"
+      . "Mit --force wird die Anmeldung ersetzt - der alte Standort bleibt auf dem\n"
+      . "Server bestehen und muss dort geloescht werden.");
+}
+
+my $p = eval { FM::Config::parse_code($code) };
+if (!$p) {
+    (my $grund = $@) =~ s/\s+\z//;
+    stirb($grund);
+}
+diag("Code entschluesselt - Serveradresse: $p->{url}, Fingerprint: " . kurz($p->{fp})
+     . ", Token: " . kurz($p->{token}));
 sag("Server: $p->{url}");
 
 my $keyfile = FM::Config::keyfile($dir);
 if (-e $keyfile && !$force) {
     sag("Vorhandenen Schluessel wiederverwenden.");
 } else {
-    FM::Keys::generate($keyfile);
+    versuchen(sub { FM::Keys::generate($keyfile) });
     sag("Neues Schluesselpaar erzeugt.");
 }
 my $pub = FM::Keys::public_raw($keyfile);
+diag("Oeffentlicher Schluessel (b64u): " . b64u_encode($pub));
 
-my ($st, $body) = FM::Http::get("$p->{url}/api/v1/hello");
-die "fm_enroll: hello antwortet mit HTTP $st\n" if $st != 200;
-my $hello = eval { JSON::PP->new->decode($body) }
-    or die "fm_enroll: hello liefert kein gueltiges JSON\n";
+diag("GET $p->{url}/api/hello.php");
+my ($st, $body) = FM::Http::get("$p->{url}/api/hello.php");
+diag("hello: HTTP $st, " . length($body // '') . " Bytes Antwort");
+stirb("fm_enroll: hello antwortet mit HTTP $st") if $st != 200;
+my $hello = eval { JSON::PP->new->decode($body) };
+stirb("fm_enroll: hello liefert kein gueltiges JSON") if !$hello;
 
 my $srv_leaf = eval {
     FM::Cert::verify_chain($hello->{chain}, expect_typ => 'srv', roots => FM::Roots::roots());
 };
-die "fm_enroll: die Serverkette ist ungueltig: $@" if !$srv_leaf;
+stirb("fm_enroll: die Serverkette ist ungueltig: $@") if !$srv_leaf;
+diag("Serverkette gueltig - Blatt: $srv_leaf->{sub}");
 
 my ($srv_cert, $ca_cert) = split /~/, $hello->{chain}, 2;
 my $ca_payload = FM::Cert::decode($ca_cert);
 my $fp = b64u_encode(sha256(b64u_decode($ca_payload->{pub})));
+diag("Partner-CA aus hello: $ca_payload->{sub}, Fingerprint " . kurz($fp));
 if ($fp ne $p->{fp}) {
-    die "fm_enroll: der Fingerprint der Partner-CA passt nicht zum Bereitstellungscode.\n"
+    stirb("fm_enroll: der Fingerprint der Partner-CA passt nicht zum Bereitstellungscode.\n"
       . "  erwartet: $p->{fp}\n  gefunden: $fp\n"
-      . "Abbruch, ohne dass der Token gesendet wurde.\n";
+      . "Abbruch, ohne dass der Token gesendet wurde.");
 }
 sag("Server geprueft: $srv_leaf->{sub} unter $ca_payload->{sub}");
 
 my $pub_b64 = b64u_encode($pub);
 my $ts      = time();
-my $selfsig = b64u_encode(
+my $selfsig = b64u_encode(versuchen(sub {
     FM::Keys::sign($keyfile, "enroll\n$p->{token}\n$pub_b64\n$ts")
-);
+}));
 
 my $name = _sitename($cfg);
+diag("Standortname: $name, Zeitstempel: $ts");
 
 my $req = JSON::PP->new->canonical->encode({
     v => 1, token => $p->{token}, pub => $pub_b64,
     name => $name, ts => $ts, selfsig => $selfsig,
 });
-my ($st2, $body2) = FM::Http::post_json("$p->{url}/api/v1/enroll", $req);
-die "fm_enroll: enroll antwortet mit HTTP $st2: $body2\n" if $st2 != 200;
-my $ans = eval { JSON::PP->new->decode($body2) }
-    or die "fm_enroll: enroll liefert kein gueltiges JSON\n";
-die "fm_enroll: Server meldet Zustand '$ans->{status}'\n" if ($ans->{status} || '') ne 'issued';
+diag("POST $p->{url}/api/enroll.php (token im Log gekuerzt: " . kurz($p->{token}) . ")");
+my ($st2, $body2) = FM::Http::post_json("$p->{url}/api/enroll.php", $req);
+diag("enroll: HTTP $st2, Antwort: " . (defined $body2 ? substr($body2, 0, 500) : '(leer)'));
+stirb("fm_enroll: enroll antwortet mit HTTP $st2: $body2") if $st2 != 200;
+my $ans = eval { JSON::PP->new->decode($body2) };
+stirb("fm_enroll: enroll liefert kein gueltiges JSON") if !$ans;
+stirb("fm_enroll: Server meldet Zustand '$ans->{status}'") if ($ans->{status} || '') ne 'issued';
 
 my $leaf = eval {
     FM::Cert::verify_chain($ans->{chain}, expect_typ => 'site',
                            expect_sub => $ans->{site}, roots => FM::Roots::roots());
 };
-die "fm_enroll: das ausgestellte Zertifikat ist ungueltig: $@" if !$leaf;
-die "fm_enroll: das Zertifikat traegt einen fremden Schluessel - Abbruch\n"
+stirb("fm_enroll: das ausgestellte Zertifikat ist ungueltig: $@") if !$leaf;
+diag("Ausgestelltes Zertifikat gueltig - Standort: $ans->{site}, gueltig bis "
+     . scalar(gmtime($leaf->{exp})) . " UTC");
+stirb("fm_enroll: das Zertifikat traegt einen fremden Schluessel - Abbruch")
     if b64u_decode($leaf->{pub}) ne $pub;
 
-FM::Config::save($dir, {
+$name = $ans->{name} if defined $ans->{name} && $ans->{name} ne '';
+
+versuchen(sub { FM::Config::save($dir, {
     %$cfg,
     site        => $ans->{site},
     name        => $name,
@@ -123,7 +172,7 @@ FM::Config::save($dir, {
     srv_pub     => $srv_leaf->{pub},
     partner     => $ca_payload->{sub},
     enrolled_at => time(),
-});
+}) });
 
 sag("Angemeldet als $ans->{site}");
 sag("Gueltig bis " . scalar(gmtime($leaf->{exp})) . " UTC");
