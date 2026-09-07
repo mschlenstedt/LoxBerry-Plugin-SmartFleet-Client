@@ -123,8 +123,10 @@ if (!FM::Backup::Pack::have_7z()) {
     FM::Events::add($rt, 'error', 'backup',
         '7z fehlt - es wird NICHT unverschluesselt gesichert');
     say_v('7z fehlt - keine Sicherung ohne Verschluesselung.');
-    exit 0;
+    exit 1;
 }
+
+make_path($store) if !-d $store;
 
 aufraeumen($store, $now);
 
@@ -171,6 +173,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
 
     my $tmp = eval { tempdir(DIR => $store, CLEANUP => 1) };
     if (!$tmp) {
+        FM::Events::add($rt, 'error', 'backup',
+            "Ablage $store nicht beschreibbar", msno => $msno);
         say_v("Miniserver $msno: Ablage $store nicht beschreibbar");
         $fehler_gesamt++;
         next;
@@ -295,7 +299,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
                   $weg ? ", $weg weggerollt" : ''));
 }
 
-exit 0;
+exit($fehler_gesamt > 0 ? 1 : 0);
 
 sub freier_platz {
     my ($pfad) = @_;
