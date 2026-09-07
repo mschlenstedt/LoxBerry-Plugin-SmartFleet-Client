@@ -3,8 +3,9 @@
 # Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
 # die diesem Programm beiliegen (LICENSE).
 
+SHELL=/bin/bash
 MAILTO=""
 PATH=/usr/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 
-17 2 * * *	loxberry perl REPLACELBPBINDIR/fm_healthcheck.pl --dir REPLACELBPCONFIGDIR --lbhomedir REPLACELBHOMEDIR >/dev/null 2>&1
+17 2 * * *	loxberry sleep $((RANDOM \% 7200)) && perl REPLACELBPBINDIR/fm_healthcheck.pl --dir REPLACELBPCONFIGDIR --lbhomedir REPLACELBHOMEDIR >/dev/null 2>&1
 

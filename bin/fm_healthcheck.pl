@@ -18,14 +18,12 @@ use FM::Loxlog;
 use FM::Events;
 use FM::Healthcheck;
 
-my ($dir, $lbhomedir, $jitter_max, $verbose);
-$jitter_max = 7200;
+my ($dir, $lbhomedir, $verbose);
 GetOptions(
     'dir=s'         => \$dir,
     'lbhomedir=s'   => \$lbhomedir,
-    'jitter-max=i'  => \$jitter_max,
     'verbose'       => \$verbose,
-) or die "Aufruf: fm_healthcheck.pl --dir <konfigdir> --lbhomedir <pfad> [--jitter-max <sekunden>] [--verbose]\n";
+) or die "Aufruf: fm_healthcheck.pl --dir <konfigdir> --lbhomedir <pfad> [--verbose]\n";
 die "fm_healthcheck: --dir fehlt\n" if !$dir;
 
 my $rt = FM::Paths::laufzeit($dir);
@@ -44,12 +42,6 @@ sub say_err  { print "$_[0]\n" if $verbose; FM::Loxlog::err($log, $_[0]); }
 sub say_deb  { print "$_[0]\n" if $verbose; FM::Loxlog::deb($log, $_[0]); }
 
 $log = FM::Loxlog::start('healthcheck', 'Healthcheck-Lauf');
-
-if ($jitter_max > 0) {
-    my $wartezeit = int(rand($jitter_max));
-    say_deb("Verzoegerung: $wartezeit Sekunden");
-    sleep($wartezeit);
-}
 
 my $hc = $lbhomedir ? File::Spec->catfile($lbhomedir, 'sbin', 'healthcheck.pl') : undef;
 if (!$hc || !-x $hc) {
