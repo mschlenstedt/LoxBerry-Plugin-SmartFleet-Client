@@ -50,8 +50,9 @@ sub parse_list {
 }
 
 sub walk {
-    my ($base, $cred, $dirs, $grenze) = @_;
+    my ($base, $cred, $dirs, $grenze, $sagen) = @_;
     $grenze = 512 * 1024 * 1024 if !$grenze || $grenze < 1;
+    $sagen ||= sub { };
 
     my (@dateien, @fehler);
     my $summe = 0;
@@ -63,6 +64,7 @@ sub walk {
         return if $tiefe > MAX_TIEFE;
         return if $voll_abbruch;
 
+        $sagen->("Verzeichnis $pfad");
         my ($ok, $body) = _get($base, $cred, "/dev/fslist$pfad");
         if (!$ok) {
             push @fehler, "Auflisten fehlgeschlagen: $pfad";

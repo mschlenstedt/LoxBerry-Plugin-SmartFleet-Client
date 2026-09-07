@@ -58,6 +58,10 @@ sub say_v {
     print "$_[0]\n" if $verbose;
     FM::Loxlog::inf($log, $_[0]);
 }
+sub say_ok   { print "$_[0]\n" if $verbose; FM::Loxlog::ok($log, $_[0]); }
+sub say_warn { print "$_[0]\n" if $verbose; FM::Loxlog::warn($log, $_[0]); }
+sub say_err  { print "$_[0]\n" if $verbose; FM::Loxlog::err($log, $_[0]); }
+sub say_deb  { print "$_[0]\n" if $verbose; FM::Loxlog::deb($log, $_[0]); }
 
 sub log_oeffnen {
     return if $log;
@@ -122,7 +126,8 @@ my $encrypt = 1;
 if (!FM::Backup::Pack::have_7z()) {
     FM::Events::add($rt, 'error', 'backup',
         '7z fehlt - es wird NICHT unverschluesselt gesichert', msno => 0);
-    say_v('7z fehlt - keine Sicherung ohne Verschluesselung.');
+    log_oeffnen();
+    say_err('7z fehlt - keine Sicherung ohne Verschluesselung.');
     exit 1;
 }
 
@@ -136,7 +141,7 @@ if (defined $frei && $frei < MIN_FREI) {
         sprintf('Zu wenig Platz: %d MB frei, %d MB noetig',
                 int($frei / 1048576), int(MIN_FREI() / 1048576)), msno => 0);
     log_oeffnen();
-    say_v(sprintf('Zu wenig Platz in der Ablage: %d MB frei', int($frei / 1048576)));
+    say_err(sprintf('Zu wenig Platz in der Ablage: %d MB frei', int($frei / 1048576)));
     exit 0;
 }
 
@@ -157,12 +162,13 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     log_oeffnen();
     say_v("Miniserver $msno: Auflisten");
     my $dirs = FM::Backup::Catalog::scope_dirs($scope);
-    my ($dateien, $fehler) = FM::Backup::Fetch::walk($base, $cred, $dirs);
+    my ($dateien, $fehler) = FM::Backup::Fetch::walk($base, $cred, $dirs, undef,
+        sub { say_deb("Miniserver $msno: $_[0]") });
 
     if (@$fehler) {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: " . $fehler->[0], msno => 0);
-        say_v("Miniserver $msno: " . $fehler->[0]);
+        say_err("Miniserver $msno: " . $fehler->[0]);
         $fehler_gesamt++;
         next;
     }
@@ -177,7 +183,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     if (!$tmp) {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: Ablage $store nicht beschreibbar", msno => 0);
-        say_v("Miniserver $msno: Ablage $store nicht beschreibbar");
+        say_err("Miniserver $msno: Ablage $store nicht beschreibbar");
         $fehler_gesamt++;
         next;
     }
@@ -193,9 +199,11 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         my ($got, $bytes) =
             FM::Backup::Fetch::get_to_file($base, $cred, $d->{path}, $ziel);
         if (!$got) {
+            say_deb("Miniserver $msno: $d->{path} nicht holbar");
             push @fehlend, $d->{path};
             next;
         }
+        say_deb("Miniserver $msno: $d->{path} ($bytes Byte)");
         push @erfasst, { path => $d->{path}, size => $bytes,
                          sha256 => FM::Backup::Pack::sha256_file($ziel) };
     }
@@ -203,7 +211,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     if (!@erfasst) {
         FM::Events::add($rt, 'error', 'backup',
                         "Miniserver $msno: keine einzige Datei holbar", msno => 0);
-        say_v("Miniserver $msno: keine einzige Datei holbar");
+        say_err("Miniserver $msno: keine einzige Datei holbar");
         $fehler_gesamt++;
         next;
     }
@@ -215,7 +223,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         $text .= sprintf(', %d Verzeichnisse nicht lesbar', scalar @$fehler)
             if @$fehler;
         FM::Events::add($rt, 'warn', 'backup', $text, msno => 0);
-        say_v($text);
+        say_warn($text);
     }
 
     my $fp = FM::Backup::Pack::fingerprint(\@erfasst, $encrypt);
@@ -239,7 +247,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: kein Miniserver-Passwort hinterlegt - Verschluesselung nicht moeglich",
             msno => 0);
-        say_v("Miniserver $msno: kein Passwort hinterlegt - wird nicht gesichert");
+        say_err("Miniserver $msno: kein Passwort hinterlegt - wird nicht gesichert");
         $fehler_gesamt++;
         next;
     }
@@ -249,7 +257,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     chdir $inhalt or do {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: Arbeitsverzeichnis nicht erreichbar", msno => 0);
-        say_v("Miniserver $msno: chdir fehlgeschlagen");
+        say_err("Miniserver $msno: chdir fehlgeschlagen");
         $fehler_gesamt++;
         next;
     };
@@ -261,7 +269,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: Packen fehlgeschlagen"
                 . ($zfehler ? " - $zfehler" : ' - ist 7z vorhanden?'), msno => 0);
-        say_v("Miniserver $msno: Packen fehlgeschlagen"
+        say_err("Miniserver $msno: Packen fehlgeschlagen"
               . ($zfehler ? " - $zfehler" : ' - ist zip vorhanden?'));
         $fehler_gesamt++;
         next;
@@ -286,7 +294,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     open my $mfh, '>', File::Spec->catfile($tmp, 'meta.json') or do {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: meta.json nicht schreibbar", msno => 0);
-        say_v("Miniserver $msno: meta.json nicht schreibbar");
+        say_err("Miniserver $msno: meta.json nicht schreibbar");
         $fehler_gesamt++;
         next;
     };
@@ -300,13 +308,13 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     if (!rename($tmp, $ziel_gen)) {
         FM::Events::add($rt, 'error', 'backup',
             "Miniserver $msno: Generation konnte nicht an den Platz", msno => 0);
-        say_v("Miniserver $msno: Generation konnte nicht an den Platz");
+        say_err("Miniserver $msno: Generation konnte nicht an den Platz");
         $fehler_gesamt++;
         next;
     }
 
     my $weg = FM::Backup::Keep::prune($store, $msno);
-    say_v(sprintf('Miniserver %d: Generation %s, %.2f MB, %d Dateien%s',
+    say_ok(sprintf('Miniserver %d: Generation %s, %.2f MB, %d Dateien%s',
                   $msno, $stamp, $zsize / 1048576, scalar(@erfasst),
                   $weg ? ", $weg weggerollt" : ''));
 }
