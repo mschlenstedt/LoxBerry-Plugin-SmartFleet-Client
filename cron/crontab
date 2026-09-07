@@ -1,0 +1,10 @@
+# SmartFleet Client
+# Copyright (c) 2026 Michael Schlenstedt. Alle Rechte vorbehalten.
+# Nutzung, Weitergabe und Veraenderung nur nach den Lizenzbedingungen,
+# die diesem Programm beiliegen (LICENSE).
+
+MAILTO=""
+PATH=/usr/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+
+17 2 * * *	loxberry perl REPLACELBPBINDIR/fm_healthcheck.pl --dir REPLACELBPCONFIGDIR --lbhomedir REPLACELBHOMEDIR >/dev/null 2>&1
+
