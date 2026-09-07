@@ -197,7 +197,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         make_path($vd) if $vd && !-d $vd;
 
         my ($got, $bytes) =
-            FM::Backup::Fetch::get_to_file($base, $cred, $d->{path}, $ziel);
+            FM::Backup::Fetch::get_to_file($base, $cred, $d->{path}, $ziel,
+                sub { say_deb("Miniserver $msno: $_[0]") });
         if (!$got) {
             say_deb("Miniserver $msno: $d->{path} nicht holbar");
             push @fehlend, $d->{path};

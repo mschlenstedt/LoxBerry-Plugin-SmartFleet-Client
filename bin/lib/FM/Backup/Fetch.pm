@@ -22,11 +22,14 @@ sub _ua {
 }
 
 sub _get {
-    my ($base, $cred, $pfad) = @_;
+    my ($base, $cred, $pfad, $sagen) = @_;
+    $sagen ||= sub { };
     my %h;
     $h{Authorization} = 'Basic ' . encode_base64($cred, '')
         if defined $cred && $cred ne '';
+    $sagen->('-> GET ' . $base . $pfad . ($h{Authorization} ? ' (Basic-Auth)' : ''));
     my $r = _ua()->get($base . $pfad, { headers => \%h });
+    $sagen->('<- ' . $r->{status} . ($r->{success} && defined $r->{content} ? "\n$r->{content}" : ''));
     return (0, undef) if !$r->{success};
     return (1, $r->{content});
 }
@@ -65,7 +68,7 @@ sub walk {
         return if $voll_abbruch;
 
         $sagen->("Verzeichnis $pfad");
-        my ($ok, $body) = _get($base, $cred, "/dev/fslist$pfad");
+        my ($ok, $body) = _get($base, $cred, "/dev/fslist$pfad", $sagen);
         if (!$ok) {
             push @fehler, "Auflisten fehlgeschlagen: $pfad";
             return;
@@ -97,11 +100,13 @@ sub walk {
 }
 
 sub get_to_file {
-    my ($base, $cred, $pfad, $ziel) = @_;
+    my ($base, $cred, $pfad, $ziel, $sagen) = @_;
+    $sagen ||= sub { };
     my %h;
     $h{Authorization} = 'Basic ' . encode_base64($cred, '')
         if defined $cred && $cred ne '';
 
+    $sagen->('-> GET ' . $base . '/dev/fsget' . $pfad . ($h{Authorization} ? ' (Basic-Auth)' : ''));
     open my $fh, '>:raw', $ziel or return (0, 0);
     my $bytes = 0;
     my $r = _ua()->request('GET', $base . '/dev/fsget' . $pfad, {
@@ -113,6 +118,7 @@ sub get_to_file {
         },
     });
     close $fh;
+    $sagen->("<- $r->{status} ($bytes Byte, nicht protokolliert)");
 
     if (!$r->{success}) {
         unlink $ziel;

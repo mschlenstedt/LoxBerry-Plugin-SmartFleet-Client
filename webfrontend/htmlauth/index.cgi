@@ -174,39 +174,46 @@ if ($ajax eq 'pruefen') {
         exit 0;
     }
 
-    my $sync_pl = File::Spec->catfile($lbpbindir, 'fm_sync.pl');
+    my $collect_pl = File::Spec->catfile($lbpbindir, 'fm_collect.pl');
+    my $sync_pl    = File::Spec->catfile($lbpbindir, 'fm_sync.pl');
 
-    my $pid = open(my $ph, '-|');
-    if (defined $pid && $pid == 0) {
-        open(STDERR, '>&', \*STDOUT);
-        exec($^X, $sync_pl, '--dir', $configdir, '--verbose', '--log');
-        exit 127;
-    }
-    if ($pid) {
-        my $auffaellig = 0;
+    my $auffaellig = 0;
+    my $rc_gesamt  = 0;
+    for my $lauf (
+        [$collect_pl, ['--dir', $configdir, '--verbose', '--dry-run']],
+        [$sync_pl,    ['--dir', $configdir, '--verbose', '--log']],
+    ) {
+        my ($prog, $arg) = @$lauf;
+        my $pid = open(my $ph, '-|');
+        if (defined $pid && $pid == 0) {
+            open(STDERR, '>&', \*STDOUT);
+            exec($^X, $prog, @$arg);
+            exit 127;
+        }
+        if (!$pid) {
+            print $L{'FM.PRUEFUNG_NICHT_STARTBAR'}, "\n";
+            next;
+        }
         while (my $z = <$ph>) {
             print $z;
             $auffaellig = 1 if $z =~ /HTTP [45][0-9][0-9]|fehlgeschlagen|nicht erreichbar|abgelehnt/i;
         }
         close $ph;
-        my $rc = $? >> 8;
-        print "
+        $rc_gesamt = $? >> 8 if ($? >> 8) != 0;
+    }
+    print "
 ";
-        if ($rc != 0) {
-            print sprintf($L{'FM.PRUEFUNG_EXITCODE'}, $rc), "
+    if ($rc_gesamt != 0) {
+        print sprintf($L{'FM.PRUEFUNG_EXITCODE'}, $rc_gesamt), "
 ";
-        }
-        elsif ($auffaellig) {
-            print $L{'FM.PRUEFUNG_NICHT_OK'}, "
+    }
+    elsif ($auffaellig) {
+        print $L{'FM.PRUEFUNG_NICHT_OK'}, "
 ";
-        }
-        else {
-            print $L{'FM.PRUEFUNG_OK'}, "
-";
-        }
     }
     else {
-        print $L{'FM.PRUEFUNG_NICHT_STARTBAR'}, "\n";
+        print $L{'FM.PRUEFUNG_OK'}, "
+";
     }
     exit 0;
 }

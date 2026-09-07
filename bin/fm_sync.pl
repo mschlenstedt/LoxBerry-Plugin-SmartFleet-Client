@@ -38,6 +38,25 @@ sub say_v {
     print "$text\n" if $verbose;
     FM::Loxlog::inf($log, $text);
 }
+sub say_err  { my $text = "@_"; print "$text\n" if $verbose; FM::Loxlog::err($log, $text); }
+sub say_deb  { my $text = "@_"; print "$text\n" if $verbose; FM::Loxlog::deb($log, $text); }
+
+my $upload_log;
+sub upload_log_oeffnen {
+    return $upload_log if $upload_log;
+    $upload_log = FM::Loxlog::start('backup', 'Uebertragung laeuft');
+    return $upload_log;
+}
+sub say_upload_v {
+    my $text = "@_";
+    print "$text\n" if $verbose;
+    FM::Loxlog::inf($upload_log, $text);
+}
+sub say_upload_deb {
+    my $text = "@_";
+    print "$text\n" if $verbose;
+    FM::Loxlog::deb($upload_log, $text);
+}
 
 my $lock = FM::State::lock($rt);
 if (!$lock) {
@@ -50,6 +69,7 @@ $log = FM::Loxlog::start('sync', 'Verbindungstest') if $mit_log;
 my $cfg = FM::Config::load($dir);
 if (!$cfg->{site} || !$cfg->{server}) {
     say_v('Dieser Standort ist noch nicht angemeldet. fm_enroll.pl zuerst ausfuehren.');
+    FM::Loxlog::ende($log);
     exit 0;
 }
 
@@ -91,25 +111,28 @@ my $body = JSON::PP->new->canonical->encode(\%body);
 my $path     = '/api/sync.php';
 my $sig_path = ($cfg->{path_prefix} || '') . $path;
 my $headers  = FM::Sig::headers($keyfile, $cfg->{site}, 'POST', $sig_path, $body);
-my ($st, $resp, $rh) = FM::Http::post_json("$cfg->{server}$path", $body, $headers);
+my ($st, $resp, $rh) = FM::Http::post_json("$cfg->{server}$path", $body, $headers, \&say_deb);
 
 if ($st != 200) {
     $state->{sync_fehler}    = "HTTP $st";
     $state->{sync_fehler_at} = time();
     FM::State::save($rt, $state);
-    say_v("Server antwortet mit HTTP $st - naechster Versuch in einer Minute.");
+    say_err("Server antwortet mit HTTP $st - naechster Versuch in einer Minute.");
+    FM::Loxlog::ende($log);
     exit 0;
 }
 
 my $rsig = $rh->{'x-fm-sig'};
 if (!FM::Sig::verify_response($resp, $rsig, $srv_pub)) {
     FM::State::save($rt, $state);
+    FM::Loxlog::ende($log);
     die "fm_sync: die Antwortsignatur des Servers stimmt nicht - Antwort verworfen.\n";
 }
 
 my $ans = eval { JSON::PP->new->decode($resp) };
 if (!$ans) {
     FM::State::save($rt, $state);
+    FM::Loxlog::ende($log);
     die "fm_sync: der Server liefert kein gueltiges JSON.\n";
 }
 
@@ -137,8 +160,9 @@ if ($spool_offset) {
 my $backup_store = FM::Settings::get($dir, 'backup_store', $cfg);
 if ($backup_store) {
     for my $msno (@{ FM::Backup::Upload::msnos($backup_store) }) {
+        upload_log_oeffnen() if FM::Backup::Upload::pending($backup_store, $msno);
         my ($lage, $meldung) = FM::Backup::Upload::send_one(
-            $cfg, $keyfile, $backup_store, $msno, \&say_v);
+            $cfg, $keyfile, $backup_store, $msno, \&say_upload_v, \&say_upload_deb);
         if ($lage eq 'error') {
             FM::Events::add($rt, 'error', 'backup',
                 "Miniserver $msno: Uebertragung fehlgeschlagen - $meldung", msno => 0);
@@ -204,7 +228,7 @@ delete $frisch->{sync_fehler_at};
 
 FM::State::save($rt, $frisch);
 say_v('Sync abgeschlossen, Sequenz ' . $state->{seq});
-exit 0;
-
 FM::Loxlog::ende($log);
+FM::Loxlog::ende($upload_log);
+exit 0;
 

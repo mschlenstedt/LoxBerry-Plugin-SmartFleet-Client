@@ -70,18 +70,30 @@ sub pending {
 }
 
 sub _post {
-    my ($cfg, $keyfile, $pfad, $daten) = @_;
+    my ($cfg, $keyfile, $pfad, $daten, $roh) = @_;
+    $roh ||= sub { };
     my $body = JSON::PP->new->canonical->encode($daten);
     my $sig_path = ($cfg->{path_prefix} || '') . $pfad;
     my $headers  = FM::Sig::headers($keyfile, $cfg->{site}, 'POST', $sig_path, $body);
+
+    my $vorschau = $daten;
+    if ($pfad =~ m{/chunk\.php\z} && ref($daten) eq 'HASH' && exists $daten->{data}) {
+        $vorschau = { %$daten, data => '<' . length($daten->{data}) . ' Byte Base64, nicht protokolliert>' };
+    }
+    $roh->('-> POST ' . $cfg->{server} . $pfad . "\n"
+         . JSON::PP->new->canonical->encode($vorschau));
+
     my ($st, $resp) = FM::Http::post_json("$cfg->{server}$pfad", $body, $headers);
+    $roh->("<- $st" . (defined $resp && $resp ne '' ? "\n$resp" : ''));
+
     my $ans = eval { JSON::PP->new->decode($resp) };
     return ($st, ref($ans) eq 'HASH' ? $ans : {});
 }
 
 sub send_one {
-    my ($cfg, $keyfile, $store, $msno, $sagen) = @_;
+    my ($cfg, $keyfile, $store, $msno, $sagen, $roh) = @_;
     $sagen ||= sub { };
+    $roh   ||= sub { };
 
     my $offen = pending($store, $msno);
     return ('idle', 'nichts offen') if !$offen;
@@ -95,7 +107,7 @@ sub send_one {
         fingerprint => $meta->{fingerprint},
         sha256 => $meta->{sha256},
         size => $meta->{size}, files => $meta->{files},
-    });
+    }, $roh);
 
     if ($st != 200) {
         return ('error', "init: HTTP $st");
@@ -113,7 +125,7 @@ sub send_one {
 
     if ($n >= $gesamt) {
         my ($cs, $ca) = _post($cfg, $keyfile, '/api/backup/complete.php',
-                              { upload => $ans->{upload} });
+                              { upload => $ans->{upload} }, $roh);
         if ($cs == 200) {
             $meta->{uploaded} = 1;
             _write_meta($offen->{dir}, $meta);
@@ -134,7 +146,7 @@ sub send_one {
     my ($ps, $pa) = _post($cfg, $keyfile, '/api/backup/chunk.php', {
         upload => $ans->{upload}, n => $n,
         data => encode_base64($stueck, ''),
-    });
+    }, $roh);
 
     if ($ps == 409 && defined $pa->{next}) {
         $sagen->("Stueck $n war schon da - der Server steht bei $pa->{next}");

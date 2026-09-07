@@ -26,15 +26,21 @@ sub _ua {
 }
 
 sub get {
-    my ($url) = @_;
+    my ($url, $sagen) = @_;
+    $sagen ||= sub { };
+    $sagen->("-> GET $url");
     my $r = _ua()->get($url);
+    $sagen->('<- ' . $r->{status} . ($r->{content} ? "\n$r->{content}" : ''));
     return ($r->{status}, $r->{content}, $r->{headers});
 }
 
 sub post_json {
-    my ($url, $body, $headers) = @_;
+    my ($url, $body, $headers, $sagen) = @_;
+    $sagen ||= sub { };
     my %h = ( 'Content-Type' => 'application/json', %{ $headers || {} } );
+    $sagen->("-> POST $url\n" . (defined $body ? $body : ''));
     my $r = _ua()->request('POST', $url, { content => $body, headers => \%h });
+    $sagen->('<- ' . $r->{status} . ($r->{content} ? "\n$r->{content}" : ''));
     return ($r->{status}, $r->{content}, $r->{headers});
 }
 

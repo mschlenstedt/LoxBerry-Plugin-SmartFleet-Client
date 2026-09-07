@@ -81,22 +81,26 @@ sub parse_value {
 }
 
 sub get {
-    my ($base, $cred, $path) = @_;
+    my ($base, $cred, $path, $sagen) = @_;
+    $sagen ||= sub { };
     my %headers;
     if (defined $cred && $cred ne '') {
         my $b = encode_base64($cred, '');
         $headers{Authorization} = "Basic $b";
     }
+    $sagen->("-> GET $base$path" . ($headers{Authorization} ? ' (Basic-Auth)' : ''));
     my $r = _ua()->get($base . $path, { headers => \%headers });
+    $sagen->('<- ' . $r->{status} . ($r->{success} && defined $r->{content} ? "\n$r->{content}" : ''));
     return (0, undef) if !$r->{success};
     return (1, $r->{content});
 }
 
 sub collect {
     my ($ms, $metrics, %opt) = @_;
-    my $base = base_url($ms);
-    my $cred = $ms->{Credentials_RAW};
-    my $dm   = $opt{device_monitor_uuid};
+    my $base  = base_url($ms);
+    my $cred  = $ms->{Credentials_RAW};
+    my $dm    = $opt{device_monitor_uuid};
+    my $sagen = $opt{sagen} || sub { };
 
     my (%values, @missing);
     my $antworten = 0;
@@ -107,7 +111,7 @@ sub collect {
             if (!$dm) { push @missing, $m->{key}; next; }
             $path = "/jdev/sps/io/$dm/all";
         }
-        my ($ok, $body) = get($base, $cred, $path);
+        my ($ok, $body) = get($base, $cred, $path, $sagen);
         if (!$ok) { push @missing, $m->{key}; next; }
         $antworten++;
         my $v = parse_value($m->{pick}, ll_value($body));
@@ -119,11 +123,11 @@ sub collect {
 }
 
 sub identity {
-    my ($ms, $app_version) = @_;
+    my ($ms, $app_version, $sagen) = @_;
     my $base = base_url($ms);
     my $cred = $ms->{Credentials_RAW};
 
-    my ($ok, $body) = get($base, $cred, '/data/LoxAPP3.json');
+    my ($ok, $body) = get($base, $cred, '/data/LoxAPP3.json', $sagen);
     return { ok => 0, app_version => $app_version } if !$ok;
 
     my $d = eval { JSON::PP->new->decode($body) };
@@ -151,11 +155,11 @@ sub identity {
 }
 
 sub messages {
-    my ($ms, $mc_uuid) = @_;
+    my ($ms, $mc_uuid, $sagen) = @_;
     return () if !defined $mc_uuid || $mc_uuid eq '';
 
     my ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW},
-        "/jdev/sps/io/$mc_uuid/getEntries/2");
+        "/jdev/sps/io/$mc_uuid/getEntries/2", $sagen);
     return () if !$ok;
 
     my $outer = eval { JSON::PP->new->decode($body) };

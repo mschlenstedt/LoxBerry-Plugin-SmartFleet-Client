@@ -55,6 +55,7 @@ sub remember_identity {
 sub miniserver_record {
     my ($ms, $msno, $metrics, $cache, $now, %opt) = @_;
     my $will_inventar = exists $opt{inventory} ? ($opt{inventory} ? 1 : 0) : 1;
+    my $sagen = $opt{sagen} || sub { };
     $cache = {} if ref($cache) ne 'HASH';
 
     my $cached = ref($cache->{$msno}) eq 'HASH' ? $cache->{$msno} : {};
@@ -65,7 +66,7 @@ sub miniserver_record {
     if ($metrics && @$metrics) {
         my $t0 = Time::HiRes::time();
         my ($values, $miss, $ok) = FM::Miniserver::collect(
-            $ms, $metrics, device_monitor_uuid => $cached->{device_monitor_uuid});
+            $ms, $metrics, device_monitor_uuid => $cached->{device_monitor_uuid}, sagen => $sagen);
         $rec{rt_ms} = int((Time::HiRes::time() - $t0) * 1000);
         $rec{v}     = $values;
         @missing    = @$miss;
@@ -75,12 +76,12 @@ sub miniserver_record {
     if ($will_inventar) {
         my ($vok, $vbody) = FM::Miniserver::get(
             FM::Miniserver::base_url($ms), $ms->{Credentials_RAW},
-            '/jdev/sps/LoxAPPversion3');
+            '/jdev/sps/LoxAPPversion3', $sagen);
         my $app_version = $vok ? FM::Miniserver::ll_value($vbody) : undef;
         $reachable = ($vok ? 1 : 0) if !defined $reachable;
 
         if (identity_due($cached, $app_version, $now)) {
-            my $ident = FM::Miniserver::identity($ms, $app_version);
+            my $ident = FM::Miniserver::identity($ms, $app_version, $sagen);
             remember_identity($cache, $msno, $ident, $now);
             $cached = ref($cache->{$msno}) eq 'HASH' ? $cache->{$msno} : {};
         }
