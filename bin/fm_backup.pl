@@ -76,7 +76,6 @@ my $now   = time();
 my $desired = ref($state->{desired}) eq 'HASH' ? $state->{desired} : {};
 my $bcfg    = ref($desired->{backup}) eq 'HASH' ? $desired->{backup} : {};
 my $cron    = $bcfg->{cron};
-my $keep    = ($bcfg->{keep} && $bcfg->{keep} =~ /\A[0-9]+\z/) ? $bcfg->{keep} + 0 : 7;
 my $scope   = ref($bcfg->{scope}) eq 'HASH' ? $bcfg->{scope} : FM::Backup::Catalog::DEFAULT_SCOPE();
 
 if (!$force && !$dry) {
@@ -85,6 +84,10 @@ if (!$force && !$dry) {
         exit 0;
     }
     if (!FM::Cron::due($cron, $now, $state->{backup_last})) {
+        if (!defined $state->{backup_last}) {
+            $state->{backup_last} = $now;
+            FM::State::save($rt, $state);
+        }
         say_v('Zeitplan noch nicht faellig.');
         exit 0;
     }
@@ -115,20 +118,11 @@ if (!%miniservers) {
     exit 0;
 }
 
-my $cfg     = FM::Config::load($dir);
-my $encrypt = $bcfg->{encrypt} ? 1 : 0;
-my $pw      = $cfg->{tunnel_password};
-
-if ($encrypt && (!defined $pw || $pw eq '')) {
+my $encrypt = 1;
+if (!FM::Backup::Pack::have_7z()) {
     FM::Events::add($rt, 'error', 'backup',
-        'Verschluesselung verlangt, aber kein Passwort hinterlegt');
-    say_v('Verschluesselung verlangt, aber kein Passwort hinterlegt.');
-    exit 0;
-}
-if ($encrypt && !FM::Backup::Pack::have_7z()) {
-    FM::Events::add($rt, 'error', 'backup',
-        'Verschluesselung verlangt, aber 7z fehlt - es wird NICHT unverschluesselt gesichert');
-    say_v('Verschluesselung verlangt, aber 7z fehlt.');
+        '7z fehlt - es wird NICHT unverschluesselt gesichert');
+    say_v('7z fehlt - keine Sicherung ohne Verschluesselung.');
     exit 0;
 }
 
@@ -234,6 +228,15 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         }
     }
 
+    my $pw = FM::Miniserver::backup_passwort($ms);
+    if (!defined $pw || $pw eq '') {
+        FM::Events::add($rt, 'error', 'backup',
+            'kein Miniserver-Passwort hinterlegt - Verschluesselung nicht moeglich', msno => $msno);
+        say_v("Miniserver $msno: kein Passwort hinterlegt - wird nicht gesichert");
+        $fehler_gesamt++;
+        next;
+    }
+
     my $zip = File::Spec->rel2abs(File::Spec->catfile($tmp, 'backup.zip'));
     my $vorher = getcwd();
     chdir $inhalt or do {
@@ -241,13 +244,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         $fehler_gesamt++;
         next;
     };
-    my ($zok, $zsize, $zfehler);
-    if ($encrypt) {
-        ($zok, $zsize, $zfehler) =
-            FM::Backup::Pack::make_zip_encrypted('.', $zip, $pw);
-    } else {
-        ($zok, $zsize) = FM::Backup::Pack::make_zip('.', $zip);
-    }
+    my ($zok, $zsize, $zfehler) =
+        FM::Backup::Pack::make_zip_encrypted('.', $zip, $pw);
     chdir $vorher;
 
     if (!$zok) {
@@ -291,7 +289,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         next;
     }
 
-    my $weg = FM::Backup::Keep::prune($store, $msno, $keep);
+    my $weg = FM::Backup::Keep::prune($store, $msno);
     say_v(sprintf('Miniserver %d: Generation %s, %.2f MB, %d Dateien%s',
                   $msno, $stamp, $zsize / 1048576, scalar(@erfasst),
                   $weg ? ", $weg weggerollt" : ''));

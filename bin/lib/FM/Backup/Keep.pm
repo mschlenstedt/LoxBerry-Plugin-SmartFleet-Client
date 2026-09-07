@@ -9,6 +9,7 @@ use strict;
 use warnings;
 use File::Spec;
 use File::Path qw(remove_tree);
+use JSON::PP;
 
 sub ms_dir {
     my ($store, $msno) = @_;
@@ -39,14 +40,19 @@ sub generations {
 }
 
 sub prune {
-    my ($store, $msno, $keep) = @_;
-    $keep = 7 if !defined $keep || $keep < 1;
+    my ($store, $msno) = @_;
 
     my $g = generations($store, $msno);
-    return 0 if scalar(@$g) <= $keep;
+    return 0 if scalar(@$g) <= 1;
 
     my $weg = 0;
-    for my $alt (@{$g}[ $keep .. $#$g ]) {
+    for my $alt (@{$g}[1 .. $#$g]) {
+        my $meta = eval {
+            open my $fh, '<', File::Spec->catfile($alt->{dir}, 'meta.json') or die;
+            local $/;
+            JSON::PP->new->decode(scalar <$fh>);
+        };
+        next if !$meta || !$meta->{uploaded};
         remove_tree($alt->{dir});
         $weg++ if !-d $alt->{dir};
     }

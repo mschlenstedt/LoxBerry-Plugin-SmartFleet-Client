@@ -188,7 +188,12 @@ $state->{sync_ok_at} = time();
 delete $state->{sync_fehler};
 delete $state->{sync_fehler_at};
 
-FM::State::save($rt, $state);
+my $frisch = FM::State::load($rt);
+$frisch->{$_} = $state->{$_} for qw(selftest_last seq desired pending_acks sync_ok_at);
+delete $frisch->{sync_fehler};
+delete $frisch->{sync_fehler_at};
+
+FM::State::save($rt, $frisch);
 say_v('Sync abgeschlossen, Sequenz ' . $state->{seq});
 exit 0;
 

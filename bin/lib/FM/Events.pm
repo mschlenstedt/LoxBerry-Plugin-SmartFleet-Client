@@ -80,7 +80,9 @@ sub add {
         return 0 if !defined $msg  || $msg eq '';
 
         $msg = substr($msg, 0, MAX_MSG_LEN) if length($msg) > MAX_MSG_LEN;
-        my $msno = $opt{msno};
+        my $msno   = $opt{msno};
+        my $room   = $opt{room};
+        my $detail = $opt{detail};
 
         make_path($dir) if !-d $dir;
         my $f = _file($dir);
@@ -122,7 +124,9 @@ sub add {
                 msg => $msg,
                 n   => 1,
             };
-            $rec->{msno} = $msno if defined $msno;
+            $rec->{msno}   = $msno   if defined $msno;
+            $rec->{room}   = $room   if defined $room;
+            $rec->{detail} = $detail if defined $detail;
             push @out, JSON::PP->new->canonical->encode($rec);
         }
 

@@ -19,6 +19,7 @@ use FM::Catalog;
 use FM::Miniserver;
 use FM::Linfo;
 use FM::Collect;
+use FM::Events;
 
 my ($dir, $verbose);
 GetOptions('dir=s' => \$dir, 'verbose' => \$verbose)
@@ -126,6 +127,28 @@ else {
 }
 
 $state->{ms_ident} = $ident_cache;
+
+my $ms_messages_seen = ref($state->{ms_messages}) eq 'HASH' ? $state->{ms_messages} : {};
+for my $msno (sort { $a <=> $b } keys %miniservers) {
+    my $mc_uuid = $ident_cache->{$msno} ? $ident_cache->{$msno}{message_center_uuid} : undef;
+    next if !defined $mc_uuid || $mc_uuid eq '';
+
+    my @entries = FM::Miniserver::messages($miniservers{$msno}, $mc_uuid);
+    my $seen_vorher = ref($ms_messages_seen->{$msno}) eq 'HASH' ? $ms_messages_seen->{$msno} : {};
+    my $rooms = $ident_cache->{$msno} ? $ident_cache->{$msno}{rooms} : {};
+    my ($events, $seen_nachher) = FM::Collect::ms_message_events(\@entries, $seen_vorher, $rooms);
+    $ms_messages_seen->{$msno} = $seen_nachher;
+
+    for my $ev (@$events) {
+        my %opt = (msno => $msno);
+        $opt{room}   = $ev->{room}   if defined $ev->{room};
+        $opt{detail} = $ev->{detail} if defined $ev->{detail};
+        FM::Events::add($rt, $ev->{sev}, 'ms_message', $ev->{msg}, %opt);
+    }
+    say_v("Miniserver $msno: " . scalar(@entries) . " Systemmeldung(en), "
+          . scalar(@$events) . " davon gemeldet/behoben") if @entries || @$events;
+}
+$state->{ms_messages} = $ms_messages_seen;
 
 FM::Spool::append($rt, FM::Collect::build_record(int($now), $lb_values, \@ms_records, $lbfriendlyname->()));
 FM::State::save($rt, $state);

@@ -32,6 +32,9 @@ sub identity_due {
     }
     return 1 if !$cached || ref($cached) ne 'HASH' || !%$cached;
     return 1 if !defined $cached->{app_version};
+    for my $feld (qw(message_center_uuid rooms)) {
+        return 1 if !exists $cached->{$feld};
+    }
     return $cached->{app_version} ne $app_version ? 1 : 0;
 }
 
@@ -95,6 +98,56 @@ sub miniserver_record {
         longitude => $cached->{longitude},
     };
     return (\%rec, \@missing);
+}
+
+sub ms_message_sev {
+    my ($severity) = @_;
+    my $n = (defined $severity && $severity =~ /\A-?[0-9]+\z/) ? $severity + 0 : 0;
+    return 'error' if $n >= 3;
+    return 'warn'  if $n == 2;
+    return 'info';
+}
+
+sub ms_message_text {
+    my ($entry) = @_;
+    my $title    = $entry->{title};
+    my $affected = $entry->{affectedName};
+    if (defined $title && $title ne '') {
+        return (defined $affected && $affected ne '') ? "$title: $affected" : $title;
+    }
+    my $desc = $entry->{desc};
+    return (defined $desc && $desc ne '') ? $desc : 'Systemmeldung ohne Titel';
+}
+
+sub ms_message_events {
+    my ($entries, $seen, $rooms) = @_;
+    $entries = [] if ref($entries) ne 'ARRAY';
+    $seen    = {}  if ref($seen)    ne 'HASH';
+    $rooms   = {}  if ref($rooms)  ne 'HASH';
+
+    my @events;
+    my %neu;
+    for my $e (@$entries) {
+        next if ref($e) ne 'HASH';
+        my $uuid = $e->{entryUuid};
+        next if !defined $uuid || $uuid eq '';
+        my $titel = ms_message_text($e);
+        $neu{$uuid} = { titel => $titel };
+        my $room_uuid = $e->{roomUuid};
+        my $room = (defined $room_uuid && exists $rooms->{$room_uuid}) ? $rooms->{$room_uuid} : undef;
+        my $detail = (defined $e->{desc} && $e->{desc} ne '') ? $e->{desc} : undef;
+        push @events, { sev => ms_message_sev($e->{severity}), msg => $titel,
+                         room => $room, detail => $detail };
+    }
+
+    for my $uuid (sort keys %$seen) {
+        next if exists $neu{$uuid};
+        my $titel = (ref($seen->{$uuid}) eq 'HASH') ? $seen->{$uuid}{titel} : undef;
+        my $msg = (defined $titel && $titel ne '') ? "$titel - behoben" : 'Systemmeldung behoben';
+        push @events, { sev => 'info', msg => $msg, room => undef, detail => undef };
+    }
+
+    return (\@events, \%neu);
 }
 
 sub build_record {

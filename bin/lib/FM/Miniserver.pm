@@ -42,6 +42,14 @@ sub ist_lokal {
     return $WAHR{lc $v} ? 0 : 1;
 }
 
+sub backup_passwort {
+    my ($ms) = @_;
+    my $cred = $ms->{Credentials_RAW};
+    return undef if !defined $cred || $cred eq '';
+    my ($user, $pass) = split(/:/, $cred, 2);
+    return (defined $pass && $pass ne '') ? $pass : undef;
+}
+
 sub ll_value {
     my ($raw) = @_;
     return undef if !defined $raw || $raw eq '';
@@ -134,7 +142,31 @@ sub identity {
         location            => $i->{location},
         latitude            => $i->{latitude},
         longitude           => $i->{longitude},
+        message_center_uuid => (ref $d->{messageCenter} eq 'HASH')
+            ? (sort keys %{ $d->{messageCenter} })[0] : undef,
+        rooms => (ref $d->{rooms} eq 'HASH')
+            ? { map { $_ => $d->{rooms}{$_}{name} } keys %{ $d->{rooms} } }
+            : {},
     };
+}
+
+sub messages {
+    my ($ms, $mc_uuid) = @_;
+    return () if !defined $mc_uuid || $mc_uuid eq '';
+
+    my ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW},
+        "/jdev/sps/io/$mc_uuid/getEntries/2");
+    return () if !$ok;
+
+    my $outer = eval { JSON::PP->new->decode($body) };
+    return () if !$outer || ref($outer->{LL}) ne 'HASH';
+    my $value = $outer->{LL}{value};
+    return () if !defined $value || $value eq '';
+
+    my $inner = eval { JSON::PP->new->decode($value) };
+    return () if !$inner || ref($inner->{entries}) ne 'ARRAY';
+
+    return grep { !$_->{isHistoric} } @{ $inner->{entries} };
 }
 
 1;
