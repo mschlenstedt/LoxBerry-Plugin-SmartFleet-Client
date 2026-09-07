@@ -139,6 +139,15 @@ if ($backup_store) {
     for my $msno (@{ FM::Backup::Upload::msnos($backup_store) }) {
         my ($lage, $meldung) = FM::Backup::Upload::send_one(
             $cfg, $keyfile, $backup_store, $msno, \&say_v);
+        if ($lage eq 'error') {
+            FM::Events::add($rt, 'error', 'backup',
+                "Miniserver $msno: Uebertragung fehlgeschlagen - $meldung", msno => 0);
+        } elsif ($lage eq 'done') {
+            FM::Events::add($rt, 'info', 'backup',
+                "Miniserver $msno: Backup erfolgreich hochgeladen"
+                    . ($meldung eq 'schon bekannt' ? ' (unveraendert, bereits bekannt)' : ''),
+                msno => 0);
+        }
         last if $lage eq 'partial' || $lage eq 'error';
     }
 }

@@ -121,7 +121,7 @@ if (!%miniservers) {
 my $encrypt = 1;
 if (!FM::Backup::Pack::have_7z()) {
     FM::Events::add($rt, 'error', 'backup',
-        '7z fehlt - es wird NICHT unverschluesselt gesichert');
+        '7z fehlt - es wird NICHT unverschluesselt gesichert', msno => 0);
     say_v('7z fehlt - keine Sicherung ohne Verschluesselung.');
     exit 1;
 }
@@ -134,7 +134,7 @@ my $frei = freier_platz($store);
 if (defined $frei && $frei < MIN_FREI) {
     FM::Events::add($rt, 'error', 'backup',
         sprintf('Zu wenig Platz: %d MB frei, %d MB noetig',
-                int($frei / 1048576), int(MIN_FREI() / 1048576)));
+                int($frei / 1048576), int(MIN_FREI() / 1048576)), msno => 0);
     log_oeffnen();
     say_v(sprintf('Zu wenig Platz in der Ablage: %d MB frei', int($frei / 1048576)));
     exit 0;
@@ -160,6 +160,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my ($dateien, $fehler) = FM::Backup::Fetch::walk($base, $cred, $dirs);
 
     if (@$fehler) {
+        FM::Events::add($rt, 'error', 'backup',
+            "Miniserver $msno: " . $fehler->[0], msno => 0);
         say_v("Miniserver $msno: " . $fehler->[0]);
         $fehler_gesamt++;
         next;
@@ -174,7 +176,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $tmp = eval { tempdir(DIR => $store, CLEANUP => 1) };
     if (!$tmp) {
         FM::Events::add($rt, 'error', 'backup',
-            "Ablage $store nicht beschreibbar", msno => $msno);
+            "Miniserver $msno: Ablage $store nicht beschreibbar", msno => 0);
         say_v("Miniserver $msno: Ablage $store nicht beschreibbar");
         $fehler_gesamt++;
         next;
@@ -200,20 +202,20 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
 
     if (!@erfasst) {
         FM::Events::add($rt, 'error', 'backup',
-                        'Keine einzige Datei holbar', msno => $msno);
+                        "Miniserver $msno: keine einzige Datei holbar", msno => 0);
         say_v("Miniserver $msno: keine einzige Datei holbar");
         $fehler_gesamt++;
         next;
     }
 
     if (@fehlend || @$fehler) {
-        my $text = sprintf('%d von %d Dateien nicht gesichert',
-                           scalar(@fehlend),
+        my $text = sprintf('Miniserver %d: %d von %d Dateien nicht gesichert',
+                           $msno, scalar(@fehlend),
                            scalar(@fehlend) + scalar(@erfasst));
         $text .= sprintf(', %d Verzeichnisse nicht lesbar', scalar @$fehler)
             if @$fehler;
-        FM::Events::add($rt, 'warn', 'backup', $text, msno => $msno);
-        say_v("Miniserver $msno: $text");
+        FM::Events::add($rt, 'warn', 'backup', $text, msno => 0);
+        say_v($text);
     }
 
     my $fp = FM::Backup::Pack::fingerprint(\@erfasst, $encrypt);
@@ -235,7 +237,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $pw = FM::Miniserver::backup_passwort($ms);
     if (!defined $pw || $pw eq '') {
         FM::Events::add($rt, 'error', 'backup',
-            'kein Miniserver-Passwort hinterlegt - Verschluesselung nicht moeglich', msno => $msno);
+            "Miniserver $msno: kein Miniserver-Passwort hinterlegt - Verschluesselung nicht moeglich",
+            msno => 0);
         say_v("Miniserver $msno: kein Passwort hinterlegt - wird nicht gesichert");
         $fehler_gesamt++;
         next;
@@ -244,6 +247,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $zip = File::Spec->rel2abs(File::Spec->catfile($tmp, 'backup.zip'));
     my $vorher = getcwd();
     chdir $inhalt or do {
+        FM::Events::add($rt, 'error', 'backup',
+            "Miniserver $msno: Arbeitsverzeichnis nicht erreichbar", msno => 0);
         say_v("Miniserver $msno: chdir fehlgeschlagen");
         $fehler_gesamt++;
         next;
@@ -253,6 +258,9 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     chdir $vorher;
 
     if (!$zok) {
+        FM::Events::add($rt, 'error', 'backup',
+            "Miniserver $msno: Packen fehlgeschlagen"
+                . ($zfehler ? " - $zfehler" : ' - ist 7z vorhanden?'), msno => 0);
         say_v("Miniserver $msno: Packen fehlgeschlagen"
               . ($zfehler ? " - $zfehler" : ' - ist zip vorhanden?'));
         $fehler_gesamt++;
@@ -276,6 +284,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         uploaded => 0,
     };
     open my $mfh, '>', File::Spec->catfile($tmp, 'meta.json') or do {
+        FM::Events::add($rt, 'error', 'backup',
+            "Miniserver $msno: meta.json nicht schreibbar", msno => 0);
         say_v("Miniserver $msno: meta.json nicht schreibbar");
         $fehler_gesamt++;
         next;
@@ -288,6 +298,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $ziel_gen = FM::Backup::Keep::gen_dir($store, $msno, $stamp);
     make_path(FM::Backup::Keep::ms_dir($store, $msno));
     if (!rename($tmp, $ziel_gen)) {
+        FM::Events::add($rt, 'error', 'backup',
+            "Miniserver $msno: Generation konnte nicht an den Platz", msno => 0);
         say_v("Miniserver $msno: Generation konnte nicht an den Platz");
         $fehler_gesamt++;
         next;
