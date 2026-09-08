@@ -280,6 +280,10 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $stamp = sprintf('%04d%02d%02d%02d%02d%02d',
                         $g[5] + 1900, $g[4] + 1, $g[3], $g[2], $g[1], $g[0]);
 
+    my $ms_ip = FM::Miniserver::ip($ms, sub { say_deb("Miniserver $msno: $_[0]") });
+    my $ms_version = FM::Miniserver::firmware_version($ms, sub { say_deb("Miniserver $msno: $_[0]") });
+    my $loxname = FM::Miniserver::loxname($ms_ip, $ms_version, $now);
+
     my $meta = {
         v => 1, msno => $msno + 0, ts => $now + 0,
         scope => $scope,
@@ -291,6 +295,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         complete => ((@fehlend || @$fehler) ? 0 : 1),
         missing  => [ @fehlend[0 .. (scalar(@fehlend) > 50 ? 49 : $#fehlend)] ],
         uploaded => 0,
+        (defined $loxname ? (loxname => $loxname) : ()),
     };
     open my $mfh, '>', File::Spec->catfile($tmp, 'meta.json') or do {
         FM::Events::add($rt, 'error', 'backup',

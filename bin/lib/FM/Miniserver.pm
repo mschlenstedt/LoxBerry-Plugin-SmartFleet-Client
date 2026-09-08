@@ -50,6 +50,36 @@ sub backup_passwort {
     return (defined $pass && $pass ne '') ? $pass : undef;
 }
 
+sub ip {
+    my ($ms, $sagen) = @_;
+    my ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW}, '/jdev/cfg/ip', $sagen);
+    return undef if !$ok;
+    my $v = ll_value($body);
+    return (defined $v && $v ne '') ? $v : undef;
+}
+
+sub firmware_version {
+    my ($ms, $sagen) = @_;
+    my ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW}, '/jdev/cfg/version', $sagen);
+    return undef if !$ok;
+    my $v = ll_value($body);
+    return (defined $v && $v ne '') ? $v : undef;
+}
+
+sub loxname {
+    my ($ip, $version, $now) = @_;
+    return undef if !defined $ip || $ip eq '';
+    return undef if !defined $version
+        || $version !~ /\A([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\z/;
+    my $versionKompakt = sprintf('%02d%02d%02d%02d', $1, $2, $3, $4);
+
+    my @l = localtime($now);
+    my $lokal = sprintf('%04d%02d%02d%02d%02d%02d',
+                        $l[5] + 1900, $l[4] + 1, $l[3], $l[2], $l[1], $l[0]);
+
+    return "Backup_${ip}_${lokal}_${versionKompakt}";
+}
+
 sub ll_value {
     my ($raw) = @_;
     return undef if !defined $raw || $raw eq '';

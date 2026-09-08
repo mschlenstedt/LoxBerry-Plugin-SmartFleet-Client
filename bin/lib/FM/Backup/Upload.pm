@@ -101,13 +101,16 @@ sub send_one {
     my $meta = $offen->{meta};
     my $zip  = File::Spec->catfile($offen->{dir}, 'backup.zip');
 
-    my ($st, $ans) = _post($cfg, $keyfile, '/api/backup/init.php', {
+    my $initDaten = {
         msno => $meta->{msno}, ts => $meta->{ts},
         scope => _scope_string($meta->{scope}),
         fingerprint => $meta->{fingerprint},
         sha256 => $meta->{sha256},
         size => $meta->{size}, files => $meta->{files},
-    }, $roh);
+    };
+    $initDaten->{loxname} = $meta->{loxname} if defined $meta->{loxname} && $meta->{loxname} ne '';
+
+    my ($st, $ans) = _post($cfg, $keyfile, '/api/backup/init.php', $initDaten, $roh);
 
     if ($st != 200) {
         return ('error', "init: HTTP $st");
