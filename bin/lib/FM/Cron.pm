@@ -55,7 +55,7 @@ sub _parse {
 
 sub _passt {
     my ($p, $zeit) = @_;
-    my @g = gmtime($zeit);
+    my @g = localtime($zeit);
     return 0 if !$p->{min}{ $g[1] };
     return 0 if !$p->{std}{ $g[2] };
     return 0 if !$p->{mon}{ $g[4] + 1 };
