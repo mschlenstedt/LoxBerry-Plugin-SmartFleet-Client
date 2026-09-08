@@ -164,11 +164,13 @@ sub identity {
     return { ok => 0, app_version => $app_version } if !$d || ref($d->{msInfo}) ne 'HASH';
 
     my $i = $d->{msInfo};
+    my $firmware = firmware_version($ms, $sagen);
     return {
         ok                  => 1,
         app_version         => $app_version,
         serial              => $i->{serialNr},
         mstype              => $i->{miniserverType},
+        firmware            => $firmware,
         name                => $i->{msName},
         project             => $i->{projectName},
         device_monitor_uuid => $i->{deviceMonitor},

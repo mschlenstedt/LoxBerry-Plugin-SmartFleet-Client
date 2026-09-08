@@ -92,6 +92,7 @@ sub miniserver_record {
         name      => $cached->{name},
         serial    => $cached->{serial},
         mstype    => $cached->{mstype},
+        firmware  => $cached->{firmware},
         project   => $cached->{project},
         controls  => $cached->{controls},
         location  => $cached->{location},

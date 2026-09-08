@@ -27,6 +27,7 @@ use FM::Backup::Catalog;
 use FM::Backup::Fetch;
 use FM::Backup::Pack;
 use FM::Backup::Keep;
+use FM::Backup::Upload;
 use FM::Events;
 
 use constant MIN_FREI => 200 * 1024 * 1024;
@@ -44,10 +45,11 @@ die "fm_backup: --dir fehlt\n"   if !$dir;
 my $rt = FM::Paths::laufzeit($dir);
 FM::Paths::uebernehmen($dir);
 
+my $cfg = FM::Config::load($dir);
 if (!$store) {
-    my $cfg0 = FM::Config::load($dir);
-    $store = FM::Settings::get($dir, 'backup_store', $cfg0);
+    $store = FM::Settings::get($dir, 'backup_store', $cfg);
 }
+my $keyfile = FM::Config::keyfile($dir);
 if (!$store) {
     print "Keine Sicherungsablage eingestellt - es wird nicht gesichert." . chr(10) if $verbose;
     exit 0;
@@ -323,6 +325,25 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     say_ok(sprintf('Miniserver %d: Generation %s, %.2f MB, %d Dateien%s',
                   $msno, $stamp, $zsize / 1048576, scalar(@erfasst),
                   $weg ? ", $weg weggerollt" : ''));
+
+    if ($cfg->{site} && $cfg->{server}) {
+        my ($lage, $meldung, $stuecke) = FM::Backup::Upload::send_all(
+            $cfg, $keyfile, $store, $msno, \&say_v, \&say_deb);
+        if ($lage eq 'error') {
+            FM::Events::add($rt, 'error', 'backup',
+                "Miniserver $msno: Uebertragung fehlgeschlagen - $meldung", msno => 0);
+            say_err("Miniserver $msno: Uebertragung fehlgeschlagen - $meldung"
+                . ($stuecke ? " (nach $stuecke Stueck(en), naechster Poll setzt fort)" : ''));
+            $fehler_gesamt++;
+        } elsif ($lage eq 'done') {
+            FM::Events::add($rt, 'info', 'backup',
+                "Miniserver $msno: Backup erfolgreich hochgeladen"
+                    . ($meldung eq 'schon bekannt' ? ' (unveraendert, bereits bekannt)' : ''),
+                msno => 0);
+            say_ok(sprintf('Miniserver %d: Uebertragung abgeschlossen (%d Stueck)',
+                          $msno, $stuecke));
+        }
+    }
 }
 
 exit($fehler_gesamt > 0 ? 1 : 0);

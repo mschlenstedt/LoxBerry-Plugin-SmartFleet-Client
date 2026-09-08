@@ -167,6 +167,7 @@ if (!$dry) {
 else {
     say_v('Testlauf (--dry-run): nichts wurde in den Spool gelegt oder gespeichert.');
 }
+FM::Loxlog::ok($log, 'Sammellauf abgeschlossen');
 FM::Loxlog::ende($log);
 exit 0;
 

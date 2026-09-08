@@ -36,9 +36,10 @@ if (!$cfg->{site}) {
 }
 
 my $log;
+my $hatte_problem = 0;
 sub say_v    { print "$_[0]\n" if $verbose; FM::Loxlog::inf($log, $_[0]); }
-sub say_warn { print "$_[0]\n" if $verbose; FM::Loxlog::warn($log, $_[0]); }
-sub say_err  { print "$_[0]\n" if $verbose; FM::Loxlog::err($log, $_[0]); }
+sub say_warn { $hatte_problem = 1; print "$_[0]\n" if $verbose; FM::Loxlog::warn($log, $_[0]); }
+sub say_err  { $hatte_problem = 1; print "$_[0]\n" if $verbose; FM::Loxlog::err($log, $_[0]); }
 sub say_deb  { print "$_[0]\n" if $verbose; FM::Loxlog::deb($log, $_[0]); }
 
 $log = FM::Loxlog::start('healthcheck', 'Healthcheck-Lauf');
@@ -86,6 +87,7 @@ for my $e (@events) {
 }
 say_v('Healthcheck abgeschlossen: ' . scalar(@events) . ' Ereignis(se) gemeldet');
 
+FM::Loxlog::ok($log, 'Healthcheck ohne Befund') if !$hatte_problem;
 FM::Loxlog::ende($log);
 exit 0;
 

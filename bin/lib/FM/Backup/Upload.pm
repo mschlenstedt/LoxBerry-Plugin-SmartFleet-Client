@@ -162,6 +162,18 @@ sub send_one {
     return ('partial', 'ein Stueck');
 }
 
+sub send_all {
+    my ($cfg, $keyfile, $store, $msno, $sagen, $roh) = @_;
+    my ($lage, $meldung) = ('idle', 'nichts offen');
+    my $stuecke = 0;
+    while (1) {
+        ($lage, $meldung) = send_one($cfg, $keyfile, $store, $msno, $sagen, $roh);
+        last if $lage ne 'partial';
+        $stuecke++;
+    }
+    return ($lage, $meldung, $stuecke);
+}
+
 sub _scope_string {
     my ($scope) = @_;
     return 'system' if ref($scope) ne 'HASH';
