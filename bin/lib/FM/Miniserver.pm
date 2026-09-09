@@ -95,7 +95,7 @@ sub parse_value {
     if ($pick eq 'number') {
         return $raw =~ /(-?[0-9]+(?:\.[0-9]+)?)/ ? $1 + 0 : undef;
     }
-    if ($pick eq 'heapfree') {
+    if ($pick eq 'heapused') {
         return $raw =~ m{^\s*(-?[0-9]+(?:\.[0-9]+)?)\s*/} ? $1 + 0 : undef;
     }
     if ($pick eq 'heaptotal') {
