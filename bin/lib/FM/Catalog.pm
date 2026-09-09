@@ -11,7 +11,7 @@ use warnings;
 my @MINISERVER = (
     { key => 'sys_cpu',          path => '/jdev/sys/cpu',         pick => 'number',    group => 'SYSTEM', hist => 1, default => 1 },
     { key => 'sys_heap_free',    path => '/jdev/sys/heap',        pick => 'heapfree',  group => 'SYSTEM', hist => 1, default => 1 },
-    { key => 'sys_heap_total',   path => '/jdev/sys/heap',        pick => 'heaptotal', group => 'SYSTEM', hist => 0, default => 0 },
+    { key => 'sys_heap_total',   path => '/jdev/sys/heap',        pick => 'heaptotal', group => 'SYSTEM', hist => 0, default => 1 },
     { key => 'sys_numtasks',     path => '/jdev/sys/numtasks',    pick => 'number',    group => 'SYSTEM', hist => 0, default => 1 },
     { key => 'sys_check',        path => '/jdev/sys/check',       pick => 'number',    group => 'SYSTEM', hist => 0, default => 0 },
     { key => 'sys_temperature',  path => '/jdev/sys/temperature', pick => 'tempcpu',   group => 'SYSTEM', hist => 1, default => 1 },

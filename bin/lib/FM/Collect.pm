@@ -32,7 +32,7 @@ sub identity_due {
     }
     return 1 if !$cached || ref($cached) ne 'HASH' || !%$cached;
     return 1 if !defined $cached->{app_version};
-    for my $feld (qw(message_center_uuid rooms)) {
+    for my $feld (qw(message_center_uuid rooms firmware)) {
         return 1 if !exists $cached->{$feld};
     }
     return $cached->{app_version} ne $app_version ? 1 : 0;
