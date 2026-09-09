@@ -104,8 +104,11 @@ sub parse_value {
     if ($pick eq 'spsfreq') {
         return $raw =~ m{([0-9]+(?:\.[0-9]+)?)\s*/\s*sec} ? $1 + 0 : undef;
     }
-    if ($pick eq 'tempcpu' || $pick eq 'tempstm32') {
-        return $raw =~ /(-?[0-9]+(?:\.[0-9]+)?)/ ? $1 + 0 : undef;
+    if ($pick eq 'tempcpu') {
+        return $raw =~ /(?<!STM32 )Cpu Temperature:\s*(-?[0-9]+(?:\.[0-9]+)?)/ ? $1 + 0 : undef;
+    }
+    if ($pick eq 'tempstm32') {
+        return $raw =~ /STM32\s*Cpu Temperature:\s*(-?[0-9]+(?:\.[0-9]+)?)/ ? $1 + 0 : undef;
     }
     return undef;
 }
@@ -144,7 +147,8 @@ sub collect {
         my ($ok, $body) = get($base, $cred, $path, $sagen);
         if (!$ok) { push @missing, $m->{key}; next; }
         $antworten++;
-        my $v = parse_value($m->{pick}, ll_value($body));
+        my $will_roh = ($m->{pick} eq 'tempcpu' || $m->{pick} eq 'tempstm32');
+        my $v = parse_value($m->{pick}, $will_roh ? $body : ll_value($body));
         if (defined $v) { $values{ $m->{key} } = $v; }
         else            { push @missing, $m->{key}; }
     }
