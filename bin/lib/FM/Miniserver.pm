@@ -209,5 +209,45 @@ sub messages {
     return grep { !$_->{isHistoric} } @{ $inner->{entries} };
 }
 
+sub _xml_node {
+    my ($el) = @_;
+    my %attrs;
+    for my $a ($el->attributes) {
+        $attrs{$a->nodeName} = $a->value;
+    }
+    my @children;
+    for my $c ($el->childNodes) {
+        next if !$c->isa('XML::LibXML::Element');
+        push @children, _xml_node($c);
+    }
+    return { tag => $el->nodeName, attrs => \%attrs, children => \@children };
+}
+
+sub parse_status_xml {
+    my ($raw) = @_;
+    return undef if !defined $raw || $raw eq '';
+    my $doc = eval { XML::LibXML->load_xml(string => $raw) };
+    return undef if !$doc;
+    return _xml_node($doc->documentElement);
+}
+
+sub devicetree {
+    my ($ms, $sagen) = @_;
+    $sagen ||= sub { };
+    my $have = eval { require XML::LibXML; 1 };
+    if (!$have) {
+        $sagen->('XML::LibXML fehlt - Geraetebaum wird uebersprungen');
+        return { ok => 0 };
+    }
+    my ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW}, '/data/status', $sagen);
+    if (!$ok) {
+        ($ok, $body) = get(base_url($ms), $ms->{Credentials_RAW}, '/status', $sagen);
+    }
+    return { ok => 0 } if !$ok;
+    my $baum = parse_status_xml($body);
+    return { ok => 0 } if !$baum;
+    return { ok => 1, tag => $baum->{tag}, attrs => $baum->{attrs}, children => $baum->{children} };
+}
+
 1;
 

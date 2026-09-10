@@ -108,6 +108,9 @@ my $ms_metrics = FM::Catalog::select([ FM::Catalog::miniserver_all() ], $tcfg->{
 
 my $want_inventory = (exists $tcfg->{inventory} && !$tcfg->{inventory}) ? 0 : 1;
 
+my $want_devicetree = (exists $tcfg->{devicetree} && !$tcfg->{devicetree}) ? 0 : 1;
+my $devtree_every = ($tcfg->{devicetree_every} && $tcfg->{devicetree_every} >= 1) ? $tcfg->{devicetree_every} : 3;
+
 my %miniservers = $get_miniservers->();
 
 for my $msno (keys %miniservers) {
@@ -127,10 +130,13 @@ else {
     for my $msno (sort { $a <=> $b } keys %miniservers) {
         my ($rec, $missing) = FM::Collect::miniserver_record(
             $miniservers{$msno}, $msno, $ms_metrics, $ident_cache, $now,
-            inventory => $want_inventory, sagen => \&say_deb);
+            inventory => $want_inventory, devicetree => $want_devicetree,
+            devicetree_interval => $interval, devicetree_every => $devtree_every,
+            sagen => \&say_deb);
         push @ms_records, $rec;
         say_v("Miniserver $msno: " . scalar(keys %{ $rec->{v} }) . " Werte, "
               . "erreichbar=$rec->{reachable}"
+              . (exists $rec->{devtree} ? ', Geraetebaum aktualisiert' : '')
               . (@$missing ? ', fehlend: ' . join(',', @$missing) : ''));
     }
 }

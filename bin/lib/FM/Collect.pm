@@ -52,6 +52,26 @@ sub remember_identity {
     return 0;
 }
 
+sub devicetree_due {
+    my ($cached, $now, $interval, $every) = @_;
+    $interval = 300 if !$interval || $interval < 1;
+    $every    = 3   if !$every    || $every < 1;
+    my $next = ref($cached) eq 'HASH' ? $cached->{devtree_next} : undef;
+    return 1 if !defined $next;
+    return 1 if $next > $now + $interval * $every * 5;
+    return $next <= $now ? 1 : 0;
+}
+
+sub remember_devicetree {
+    my ($cache, $msno, $now, $interval, $every) = @_;
+    $interval = 300 if !$interval || $interval < 1;
+    $every    = 3   if !$every    || $every < 1;
+    my $e = ref($cache->{$msno}) eq 'HASH' ? $cache->{$msno} : {};
+    $e->{devtree_next} = int($now) + $interval * $every;
+    $cache->{$msno} = $e;
+    return;
+}
+
 sub miniserver_record {
     my ($ms, $msno, $metrics, $cache, $now, %opt) = @_;
     my $will_inventar = exists $opt{inventory} ? ($opt{inventory} ? 1 : 0) : 1;
@@ -84,6 +104,15 @@ sub miniserver_record {
             my $ident = FM::Miniserver::identity($ms, $app_version, $sagen);
             remember_identity($cache, $msno, $ident, $now);
             $cached = ref($cache->{$msno}) eq 'HASH' ? $cache->{$msno} : {};
+        }
+    }
+
+    my $will_devtree = $opt{devicetree} ? 1 : 0;
+    if ($will_devtree && devicetree_due($cached, $now, $opt{devicetree_interval}, $opt{devicetree_every})) {
+        my $baum = FM::Miniserver::devicetree($ms, $sagen);
+        remember_devicetree($cache, $msno, $now, $opt{devicetree_interval}, $opt{devicetree_every});
+        if ($baum && $baum->{ok}) {
+            $rec{devtree} = { tag => $baum->{tag}, attrs => $baum->{attrs}, children => $baum->{children} };
         }
     }
 
