@@ -90,7 +90,7 @@ sub add {
         my $lock = _lock($dir, LOCK_EX);
 
         my $lines = _read_raw_locked($f);
-        my $j = JSON::PP->new;
+        my $j = JSON::PP->new->utf8;
         my $now = time();
         my $cutoff = $now - THROTTLE_SECS;
 
@@ -108,7 +108,7 @@ sub add {
                     && defined($r->{ts}) && $r->{ts} >= $cutoff )
                 {
                     $r->{n} = ($r->{n} || 1) + 1;
-                    push @out, JSON::PP->new->canonical->encode($r);
+                    push @out, JSON::PP->new->canonical->utf8->encode($r);
                     $throttled = 1;
                     next;
                 }
@@ -127,7 +127,7 @@ sub add {
             $rec->{msno}   = $msno   if defined $msno;
             $rec->{room}   = $room   if defined $room;
             $rec->{detail} = $detail if defined $detail;
-            push @out, JSON::PP->new->canonical->encode($rec);
+            push @out, JSON::PP->new->canonical->utf8->encode($rec);
         }
 
         my $content = join('', map { "$_\n" } @out);
@@ -184,7 +184,7 @@ sub take {
 
     my @events;
     my $offset = 0;
-    my $j = JSON::PP->new;
+    my $j = JSON::PP->new->utf8;
     for my $line (split /\n/, $usable) {
         $offset += length($line) + 1;
 

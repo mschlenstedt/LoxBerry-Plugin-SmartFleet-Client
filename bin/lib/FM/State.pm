@@ -23,7 +23,7 @@ sub load {
     local $/;
     my $raw = <$fh>;
     close $fh;
-    my $s = eval { JSON::PP->new->decode($raw) };
+    my $s = eval { JSON::PP->new->utf8->decode($raw) };
     return $default if !$s || ref($s) ne 'HASH';
     $s->{seq} = 0
         if ref($s->{seq}) ne '' || !defined($s->{seq}) || $s->{seq} !~ /\A[0-9]+\z/;
@@ -38,7 +38,7 @@ sub save {
     my $f   = _file($dir);
     my $tmp = "$f.new.$$";
     open my $fh, '>:raw', $tmp or die "FM::State: $tmp nicht schreibbar: $!\n";
-    print {$fh} JSON::PP->new->canonical->encode($state);
+    print {$fh} JSON::PP->new->canonical->utf8->encode($state);
     close $fh or die "FM::State: $tmp nicht geschlossen: $!\n";
     chmod 0600, $tmp;
     rename $tmp, $f or die "FM::State: $tmp nicht nach $f verschiebbar: $!\n";

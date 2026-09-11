@@ -108,7 +108,7 @@ my %body = (
     events  => $events,
 );
 $body{selftest} = $selftest if $selftest;
-my $body = JSON::PP->new->canonical->encode(\%body);
+my $body = JSON::PP->new->canonical->utf8->encode(\%body);
 
 my $path     = '/api/sync.php';
 my $sig_path = ($cfg->{path_prefix} || '') . $path;
@@ -131,7 +131,7 @@ if (!FM::Sig::verify_response($resp, $rsig, $srv_pub)) {
     die "fm_sync: die Antwortsignatur des Servers stimmt nicht - Antwort verworfen.\n";
 }
 
-my $ans = eval { JSON::PP->new->decode($resp) };
+my $ans = eval { JSON::PP->new->utf8->decode($resp) };
 if (!$ans) {
     FM::State::save($rt, $state);
     FM::Loxlog::ende($log);

@@ -38,7 +38,7 @@ sub append {
     make_path($dir) if !-d $dir;
     my $f = _file($dir);
 
-    my $line = JSON::PP->new->canonical->encode($rec) . "\n";
+    my $line = JSON::PP->new->canonical->utf8->encode($rec) . "\n";
 
     my $lock = _lock($dir, LOCK_EX);
 
@@ -118,7 +118,7 @@ sub read {
     my @recs;
     my @offsets;
     my $offset = 0;
-    my $j = JSON::PP->new;
+    my $j = JSON::PP->new->utf8;
     for my $line (split /\n/, $usable) {
         $offset += length($line) + 1;
 

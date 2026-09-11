@@ -164,7 +164,7 @@ sub identity {
     my ($ok, $body) = get($base, $cred, '/data/LoxAPP3.json', $sagen);
     return { ok => 0, app_version => $app_version } if !$ok;
 
-    my $d = eval { JSON::PP->new->decode($body) };
+    my $d = eval { JSON::PP->new->utf8->decode($body) };
     return { ok => 0, app_version => $app_version } if !$d || ref($d->{msInfo}) ne 'HASH';
 
     my $i = $d->{msInfo};
@@ -198,7 +198,7 @@ sub messages {
         "/jdev/sps/io/$mc_uuid/getEntries/2", $sagen);
     return () if !$ok;
 
-    my $outer = eval { JSON::PP->new->decode($body) };
+    my $outer = eval { JSON::PP->new->utf8->decode($body) };
     return () if !$outer || ref($outer->{LL}) ne 'HASH';
     my $value = $outer->{LL}{value};
     return () if !defined $value || $value eq '';
