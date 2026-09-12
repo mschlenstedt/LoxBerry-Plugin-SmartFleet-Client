@@ -164,11 +164,19 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $loxone  = $eziel_oder_fehler;
     my $groesse = -s $loxone;
     my $sha256  = FM::Backup::Pack::sha256_file($loxone);
+    my $metadaten = FM::Loxplan::metadaten($loxone);
+
+    my ($jok, $jbody) = FM::Miniserver::get($base, $cred, '/data/LoxAPP3.json',
+        sub { say_deb("Miniserver $msno: $_[0]") });
+    if (!$jok) {
+        say_deb("Miniserver $msno: LoxAPP3.json nicht holbar - wird ohne sie hochgeladen");
+    }
+    my $loxapp3 = $jok ? $jbody : undef;
 
     if ($cfg->{site} && $cfg->{server}) {
         my ($lage, $meldung) = FM::Projekt::Upload::hochladen(
             $cfg, $keyfile, $msno, $app_version, $groesse, $sha256, $loxone,
-            \&say_v, \&say_deb);
+            $metadaten, $loxapp3, \&say_v, \&say_deb);
         if ($lage eq 'error') {
             FM::Events::add($rt, 'error', 'projekt', "Miniserver $msno: Uebertragung fehlgeschlagen - $meldung", msno => 0);
             say_err("Miniserver $msno: Uebertragung fehlgeschlagen - $meldung");

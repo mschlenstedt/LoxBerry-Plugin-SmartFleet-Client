@@ -16,7 +16,7 @@ use FM::Backup::Upload;
 sub _post {
     my ($cfg, $keyfile, $pfad, $daten, $roh) = @_;
     $roh ||= sub { };
-    my $body = JSON::PP->new->canonical->encode($daten);
+    my $body = JSON::PP->new->canonical->utf8->encode($daten);
     my $sig_path = ($cfg->{path_prefix} || '') . $pfad;
     my $headers  = FM::Sig::headers($keyfile, $cfg->{site}, 'POST', $sig_path, $body);
 
@@ -34,13 +34,18 @@ sub _post {
 }
 
 sub hochladen {
-    my ($cfg, $keyfile, $msno, $quelle_ts, $groesse, $sha256, $dateipfad, $sagen, $roh) = @_;
+    my ($cfg, $keyfile, $msno, $quelle_ts, $groesse, $sha256, $dateipfad, $metadaten, $loxapp3, $sagen, $roh) = @_;
     $sagen ||= sub { };
     $roh   ||= sub { };
+    $metadaten = {} if ref($metadaten) ne 'HASH';
 
-    my ($st, $ans) = _post($cfg, $keyfile, '/api/projekt/init.php', {
-        msno => $msno, quelle_ts => $quelle_ts, sha256 => $sha256, size => $groesse,
-    }, $roh);
+    my $initDaten = { msno => $msno, quelle_ts => $quelle_ts, sha256 => $sha256, size => $groesse };
+    for my $feld (qw(config_version creator cust)) {
+        $initDaten->{$feld} = $metadaten->{$feld}
+            if defined $metadaten->{$feld} && $metadaten->{$feld} ne '';
+    }
+
+    my ($st, $ans) = _post($cfg, $keyfile, '/api/projekt/init.php', $initDaten, $roh);
     return ('error', "init: HTTP $st") if $st != 200;
     return ('done', 'schon bekannt') if $ans->{known};
 
@@ -72,9 +77,11 @@ sub hochladen {
         $n++;
     }
 
-    my ($cs, undef) = _post($cfg, $keyfile, '/api/projekt/complete.php', {
-        upload => $ans->{upload},
-    }, $roh);
+    my $completeDaten = { upload => $ans->{upload} };
+    if (defined $loxapp3 && $loxapp3 ne '') {
+        $completeDaten->{loxapp3} = encode_base64($loxapp3, '');
+    }
+    my ($cs, undef) = _post($cfg, $keyfile, '/api/projekt/complete.php', $completeDaten, $roh);
     return ('error', "complete: HTTP $cs") if $cs != 200;
     return ('done', 'vollstaendig');
 }

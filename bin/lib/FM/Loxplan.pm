@@ -153,5 +153,40 @@ sub entpacke {
     return (0, 'weder sps0.Loxone noch sps0.LoxCC im Archiv gefunden');
 }
 
+sub metadaten {
+    my ($pfad) = @_;
+    my %leer = (config_version => undef, creator => undef, cust => undef);
+
+    open my $fh, '<:raw', $pfad or return { %leer };
+    my $praefix = '';
+    read $fh, $praefix, 8192;
+    close $fh;
+
+    return { %leer } if $praefix !~ /<C\s+Type="Document"([^>]*)>/;
+    my $attrs = $1;
+
+    my %werte;
+    while ($attrs =~ /(\w+)="([^"]*)"/g) {
+        $werte{$1} = _xml_entdekodieren($2);
+    }
+
+    return {
+        config_version => $werte{ConfigVersion},
+        creator        => $werte{Creator},
+        cust           => $werte{Cust},
+    };
+}
+
+sub _xml_entdekodieren {
+    my ($s) = @_;
+    return $s if !defined $s || $s eq '';
+    $s =~ s/&lt;/</g;
+    $s =~ s/&gt;/>/g;
+    $s =~ s/&quot;/"/g;
+    $s =~ s/&apos;/'/g;
+    $s =~ s/&amp;/&/g;
+    return $s;
+}
+
 1;
 
