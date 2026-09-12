@@ -22,7 +22,10 @@ sub _post {
 
     my $vorschau = $daten;
     if ($pfad =~ m{/chunk\.php\z} && ref($daten) eq 'HASH' && exists $daten->{data}) {
-        $vorschau = { %$daten, data => '<' . length($daten->{data}) . ' Byte Base64, nicht protokolliert>' };
+        $vorschau = { %$vorschau, data => '<' . length($daten->{data}) . ' Byte Base64, nicht protokolliert>' };
+    }
+    if (ref($daten) eq 'HASH' && exists $daten->{loxapp3}) {
+        $vorschau = { %$vorschau, loxapp3 => '<' . length($daten->{loxapp3}) . ' Byte Base64, nicht protokolliert>' };
     }
     $roh->('-> POST ' . $cfg->{server} . $pfad . "\n" . JSON::PP->new->canonical->encode($vorschau));
 
@@ -40,14 +43,21 @@ sub hochladen {
     $metadaten = {} if ref($metadaten) ne 'HASH';
 
     my $initDaten = { msno => $msno, quelle_ts => $quelle_ts, sha256 => $sha256, size => $groesse };
-    for my $feld (qw(config_version creator cust)) {
+    for my $feld (qw(config_version creator cust config_ts)) {
         $initDaten->{$feld} = $metadaten->{$feld}
             if defined $metadaten->{$feld} && $metadaten->{$feld} ne '';
+    }
+    if (defined $loxapp3 && $loxapp3 ne '') {
+        $initDaten->{loxapp3} = encode_base64($loxapp3, '');
     }
 
     my ($st, $ans) = _post($cfg, $keyfile, '/api/projekt/init.php', $initDaten, $roh);
     return ('error', "init: HTTP $st") if $st != 200;
     return ('done', 'schon bekannt') if $ans->{known};
+
+    if (!defined $dateipfad) {
+        return ('retry', 'Server kennt die zwischengespeicherte Version nicht mehr - eine echte Datei wird gebraucht');
+    }
 
     my $n      = defined $ans->{next} ? $ans->{next} + 0 : 0;
     my $gesamt = FM::Backup::Upload::chunk_count($groesse);
@@ -77,11 +87,7 @@ sub hochladen {
         $n++;
     }
 
-    my $completeDaten = { upload => $ans->{upload} };
-    if (defined $loxapp3 && $loxapp3 ne '') {
-        $completeDaten->{loxapp3} = encode_base64($loxapp3, '');
-    }
-    my ($cs, undef) = _post($cfg, $keyfile, '/api/projekt/complete.php', $completeDaten, $roh);
+    my ($cs, undef) = _post($cfg, $keyfile, '/api/projekt/complete.php', { upload => $ans->{upload} }, $roh);
     return ('error', "complete: HTTP $cs") if $cs != 200;
     return ('done', 'vollstaendig');
 }

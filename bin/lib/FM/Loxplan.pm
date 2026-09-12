@@ -13,6 +13,8 @@ use FM::Backup::Pack;
 
 use constant MAGIC => 0xaabbccee;
 
+use constant LOXONE_EPOCH => 1230768000;
+
 sub unpack_loxcc {
     my ($quelldatei, $zieldatei) = @_;
 
@@ -155,7 +157,7 @@ sub entpacke {
 
 sub metadaten {
     my ($pfad) = @_;
-    my %leer = (config_version => undef, creator => undef, cust => undef);
+    my %leer = (config_version => undef, creator => undef, cust => undef, config_ts => undef);
 
     open my $fh, '<:raw', $pfad or return { %leer };
     my $praefix = '';
@@ -170,11 +172,23 @@ sub metadaten {
         $werte{$1} = _xml_entdekodieren($2);
     }
 
+    my $config_ts;
+    if (defined $werte{DateS} && $werte{DateS} =~ /\A\d+\z/) {
+        $config_ts = LOXONE_EPOCH + $werte{DateS};
+    }
+
     return {
-        config_version => $werte{ConfigVersion},
+        config_version => _firmware_formatieren($werte{ConfigVersion}),
         creator        => $werte{Creator},
         cust           => $werte{Cust},
+        config_ts      => $config_ts,
     };
+}
+
+sub _firmware_formatieren {
+    my ($s) = @_;
+    return $s if !defined $s || $s !~ /\A\d{8}\z/;
+    return join('.', map { $_ + 0 } $s =~ /(\d{2})/g);
 }
 
 sub _xml_entdekodieren {

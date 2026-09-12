@@ -52,6 +52,27 @@ sub say_err  { print "$_[0]\n" if $verbose; FM::Loxlog::err($log, $_[0]); }
 sub say_deb  { print "$_[0]\n" if $verbose; FM::Loxlog::deb($log, $_[0]); }
 sub log_oeffnen { return if $log; $log = FM::Loxlog::start('projekt', 'Programmsicherung laeuft'); }
 
+sub voll_herunterladen_und_entpacken {
+    my ($base, $cred, $msno, $datei, $arbeitsdir) = @_;
+
+    remove_tree($arbeitsdir) if -d $arbeitsdir;
+    make_path($arbeitsdir);
+
+    my $rohziel = File::Spec->catfile($arbeitsdir, $datei);
+    my ($got, undef) = FM::Backup::Fetch::get_to_file($base, $cred, "/prog/$datei", $rohziel,
+        sub { say_deb("Miniserver $msno: $_[0]") });
+    return (0, "$datei nicht holbar") if !$got;
+
+    my ($eok, $eziel_oder_fehler) = FM::Loxplan::entpacke($rohziel, $arbeitsdir);
+    return (0, "Entpacken fehlgeschlagen - $eziel_oder_fehler") if !$eok;
+
+    my $loxone    = $eziel_oder_fehler;
+    my $groesse   = -s $loxone;
+    my $sha256    = FM::Backup::Pack::sha256_file($loxone);
+    my $metadaten = FM::Loxplan::metadaten($loxone);
+    return (1, $loxone, $groesse, $sha256, $metadaten);
+}
+
 my $lock = FM::State::lock($rt, 'projekt');
 if (!$lock) {
     say_v('Eine Programmsicherung laeuft bereits - die Sperre ist belegt.');
@@ -139,32 +160,28 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     }
 
     my $arbeitsdir = File::Spec->catdir($rt, 'projekt', "ms$msno");
-    remove_tree($arbeitsdir) if -d $arbeitsdir;
-    make_path($arbeitsdir);
 
-    my $rohziel = File::Spec->catfile($arbeitsdir, $datei);
-    my ($got, undef) = FM::Backup::Fetch::get_to_file($base, $cred, "/prog/$datei", $rohziel,
-        sub { say_deb("Miniserver $msno: $_[0]") });
-    if (!$got) {
-        FM::Events::add($rt, 'warn', 'projekt', "Miniserver $msno: $datei nicht holbar", msno => 0);
-        say_warn("Miniserver $msno: $datei nicht holbar");
-        $fehler_gesamt++;
-        remove_tree($arbeitsdir);
-        next;
-    }
+    my $bekannt_datei   = $state->{projekt}{$msno}{dateiname};
+    my $bekannt_sha256  = $state->{projekt}{$msno}{sha256};
+    my $bekannt_groesse = $state->{projekt}{$msno}{groesse};
+    my $schnellpfad = defined $bekannt_datei && $bekannt_datei eq $datei
+                    && defined $bekannt_sha256 && defined $bekannt_groesse;
 
-    my ($eok, $eziel_oder_fehler) = FM::Loxplan::entpacke($rohziel, $arbeitsdir);
-    if (!$eok) {
-        FM::Events::add($rt, 'warn', 'projekt', "Miniserver $msno: Entpacken fehlgeschlagen - $eziel_oder_fehler", msno => 0);
-        say_warn("Miniserver $msno: Entpacken fehlgeschlagen - $eziel_oder_fehler");
-        $fehler_gesamt++;
-        remove_tree($arbeitsdir);
-        next;
+    my ($loxone, $groesse, $sha256, $metadaten);
+    if ($schnellpfad) {
+        say_v("Miniserver $msno: Programmdatei unveraendert ($datei) - Download uebersprungen");
+        ($groesse, $sha256, $metadaten) = ($bekannt_groesse, $bekannt_sha256, undef);
+    } else {
+        my ($ok, @rest) = voll_herunterladen_und_entpacken($base, $cred, $msno, $datei, $arbeitsdir);
+        if (!$ok) {
+            FM::Events::add($rt, 'warn', 'projekt', "Miniserver $msno: $rest[0]", msno => 0);
+            say_warn("Miniserver $msno: $rest[0]");
+            $fehler_gesamt++;
+            remove_tree($arbeitsdir);
+            next;
+        }
+        ($loxone, $groesse, $sha256, $metadaten) = @rest;
     }
-    my $loxone  = $eziel_oder_fehler;
-    my $groesse = -s $loxone;
-    my $sha256  = FM::Backup::Pack::sha256_file($loxone);
-    my $metadaten = FM::Loxplan::metadaten($loxone);
 
     my ($jok, $jbody) = FM::Miniserver::get($base, $cred, '/data/LoxAPP3.json',
         sub { say_deb("Miniserver $msno: $_[0]") });
@@ -177,12 +194,29 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         my ($lage, $meldung) = FM::Projekt::Upload::hochladen(
             $cfg, $keyfile, $msno, $app_version, $groesse, $sha256, $loxone,
             $metadaten, $loxapp3, \&say_v, \&say_deb);
+
+        if ($lage eq 'retry') {
+            say_v("Miniserver $msno: Server kennt die zwischengespeicherte Version nicht mehr - hole sie jetzt wirklich");
+            my ($ok, @rest) = voll_herunterladen_und_entpacken($base, $cred, $msno, $datei, $arbeitsdir);
+            if ($ok) {
+                ($loxone, $groesse, $sha256, $metadaten) = @rest;
+                ($lage, $meldung) = FM::Projekt::Upload::hochladen(
+                    $cfg, $keyfile, $msno, $app_version, $groesse, $sha256, $loxone,
+                    $metadaten, $loxapp3, \&say_v, \&say_deb);
+            } else {
+                ($lage, $meldung) = ('error', $rest[0]);
+            }
+        }
+
         if ($lage eq 'error') {
             FM::Events::add($rt, 'error', 'projekt', "Miniserver $msno: Uebertragung fehlgeschlagen - $meldung", msno => 0);
             say_err("Miniserver $msno: Uebertragung fehlgeschlagen - $meldung");
             $fehler_gesamt++;
         } else {
             $state->{projekt}{$msno}{app_version} = $app_version;
+            $state->{projekt}{$msno}{dateiname}   = $datei;
+            $state->{projekt}{$msno}{sha256}      = $sha256;
+            $state->{projekt}{$msno}{groesse}     = $groesse;
             FM::State::save($rt, $state);
             FM::Events::add($rt, 'info', 'projekt', "Miniserver $msno: Programm aktualisiert", msno => 0);
             say_ok("Miniserver $msno: Programm hochgeladen ($groesse Byte)");
