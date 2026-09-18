@@ -182,13 +182,15 @@ sub ms_message_events {
 }
 
 sub build_record {
-    my ($now, $lb, $ms, $lb_name) = @_;
+    my ($now, $lb, $ms, $lb_name, $lb_version, $lb_id) = @_;
     my %rec = (
         ts => $now + 0,
         lb => ($lb && ref($lb) eq 'HASH' ? $lb : {}),
         ms => ($ms && ref($ms) eq 'ARRAY' ? $ms : []),
     );
-    $rec{lb_name} = $lb_name if defined $lb_name && $lb_name ne '';
+    $rec{lb_name}    = $lb_name    if defined $lb_name    && $lb_name    ne '';
+    $rec{lb_version} = $lb_version if defined $lb_version && $lb_version ne '';
+    $rec{lb_id}      = $lb_id      if defined $lb_id      && $lb_id      ne '';
     return \%rec;
 }
 

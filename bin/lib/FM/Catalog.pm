@@ -53,6 +53,7 @@ my @LOXBERRY = (
     { key => 'lb_proc_total',        path => ['processStats', 'proc_total'],               pick => 'number',  group => 'PROC',   hist => 0, default => 1 },
     { key => 'lb_proc_zombie',       path => ['processStats', 'totals', 'zombie'],         pick => 'number',  group => 'PROC',   hist => 1, default => 1 },
     { key => 'lb_disk_root_percent', path => ['/'],                                        pick => 'mountpct',group => 'DISK',   hist => 1, default => 1 },
+    { key => 'lb_temp_cpu',          path => ['Temps'],                                    pick => 'firsttemp', group => 'SYSTEM', hist => 1, default => 1 },
 );
 
 sub miniserver_all { return map { { %$_ } } @MINISERVER; }

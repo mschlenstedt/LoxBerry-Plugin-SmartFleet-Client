@@ -76,6 +76,13 @@ sub parse_value {
         }
         return undef;
     }
+    if ($pick eq 'firsttemp') {
+        my $liste = pluck($data, $path);
+        return undef if ref($liste) ne 'ARRAY' || !@$liste;
+        my $erster = $liste->[0];
+        return undef if ref($erster) ne 'HASH';
+        return _num($erster->{temp});
+    }
     return undef;
 }
 

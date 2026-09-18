@@ -38,15 +38,27 @@ sub say_v   { my $t = "@_"; print "$t\n" if $verbose; FM::Loxlog::inf($log, $t);
 sub say_err { my $t = "@_"; print "$t\n" if $verbose; FM::Loxlog::err($log, $t); }
 sub say_deb { my $t = "@_"; print "$t\n" if $verbose; FM::Loxlog::deb($log, $t); }
 
+sub lb_id_lesen {
+    my $pfad = "$LoxBerry::System::lbsconfigdir/loxberryid.cfg";
+    open(my $fh, '<', $pfad) or return undef;
+    local $/;
+    my $inhalt = <$fh>;
+    close($fh);
+    return undef if !defined $inhalt;
+    $inhalt =~ s/^\s+|\s+$//g;
+    return $inhalt ne '' ? $inhalt : undef;
+}
+
 my $lbwebserverport;
 my $get_miniservers;
 my $lbfriendlyname;
+my $lbversion;
 {
     my $ok = eval {
         require LoxBerry::System;
         {
             no strict 'refs';
-            for my $f (qw(lbwebserverport get_miniservers lbfriendlyname)) {
+            for my $f (qw(lbwebserverport get_miniservers lbfriendlyname lbversion)) {
                 die "LoxBerry::System::$f fehlt\n"
                     if !defined &{"LoxBerry::System::$f"};
             }
@@ -54,6 +66,7 @@ my $lbfriendlyname;
         $lbwebserverport = \&LoxBerry::System::lbwebserverport;
         $get_miniservers = \&LoxBerry::System::get_miniservers;
         $lbfriendlyname  = \&LoxBerry::System::lbfriendlyname;
+        $lbversion       = \&LoxBerry::System::lbversion;
         1;
     };
     if (!$ok) {
@@ -166,7 +179,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
 $state->{ms_messages} = $ms_messages_seen if !$dry;
 
 if (!$dry) {
-    FM::Spool::append($rt, FM::Collect::build_record(int($now), $lb_values, \@ms_records, $lbfriendlyname->()));
+    FM::Spool::append($rt, FM::Collect::build_record(
+        int($now), $lb_values, \@ms_records, $lbfriendlyname->(), $lbversion->(), lb_id_lesen()));
     FM::State::save($rt, $state);
     say_v('Spool: ' . FM::Spool::size($rt) . ' Byte');
 }
