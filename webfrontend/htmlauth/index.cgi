@@ -30,6 +30,7 @@ use FM::Restore;
 use FM::Settings;
 use FM::State;
 use FM::TunnelPw;
+use FM::Vault;
 use FM::Tunnel;
 
 my $cgi     = CGI->new;
@@ -227,6 +228,9 @@ my %MELDUNG_ORT = (
     abmelden           => 'trennen',
     tunnel_erlaubt_ein => 'fernwartung',
     tunnel_erlaubt_aus => 'fernwartung',
+    vault_optin        => 'tresor',
+    vault_widerruf     => 'tresor',
+    vault_pin_zuruecksetzen => 'tresor',
     vorschlag          => 'passwort',
     setzen             => 'passwort',
     einstellungen      => 'sicherungen',
@@ -402,7 +406,10 @@ elsif ($aktion eq 'setzen') {
             1;
         };
         if ($abgelegt) {
-            melde(1, $L{'FM.MELDUNG_GESETZT'}, $ort);
+            my $tresor = FM::Vault::tunnel_einreihen($configdir, $pw);
+            my $text = $L{'FM.MELDUNG_GESETZT'};
+            $text .= ' ' . $L{'FM.NICHT_UEBERTRAGEN'} if $tresor eq 'nicht_uebertragen';
+            melde(1, $text, $ort);
             $tunnel_vorschlag = $pw;
         }
         else {
@@ -421,6 +428,23 @@ elsif ($aktion eq 'tunnel_erlaubt_aus') {
     $stg->{tunnel_erlaubt} = 0;
     eval { FM::Settings::save($configdir, $stg); 1 }
         or melde(0, $L{'FM.MELDUNG_SPEICHERN_FEHLER'}, $ort);
+}
+if ($aktion =~ /\Avault_(?:optin|widerruf|pin_zuruecksetzen)\z/) {
+    my $erg = FM::Vault::optin_aktion($configdir, $aktion,
+                  scalar $cgi->param('vault_haken'),
+                  scalar $cgi->param('vault_textversion'));
+    my %TEXT = (
+        vault_optin             => 'FM.VAULT_MELDUNG_OPTIN',
+        vault_widerruf          => 'FM.VAULT_MELDUNG_WIDERRUF',
+        vault_pin_zuruecksetzen => 'FM.VAULT_MELDUNG_PIN',
+    );
+    if ($erg eq 'ok') {
+        my $text = $L{$TEXT{$aktion}};
+        $text .= ' ' . $L{'FM.VAULT_MELDUNG_OPTIN_HINWEIS'} if $aktion eq 'vault_optin';
+        melde(1, $text, $ort);
+    }
+    elsif ($erg eq 'haken_fehlt') { melde(0, $L{'FM.VAULT_MELDUNG_HAKEN'}, $ort); }
+    else                          { melde(0, $L{'FM.VAULT_MELDUNG_FEHLER'}, $ort); }
 }
 my $tunnel_erlaubt = $stg->{tunnel_erlaubt} ? 1 : 0;
 
@@ -579,6 +603,12 @@ $out->param(
     NUR_MIT_BEIDEM => (($angemeldet && $tunnel_erlaubt) ? '' : 'disabled'),
 );
 
+my $vault_zeit = FM::Vault::optin_zeit($configdir);
+$out->param(
+    VAULT_AKTIV     => (defined $vault_zeit ? 1 : 0),
+    VAULT_SEIT      => (defined $vault_zeit ? zeitpunkt_text($vault_zeit) : ''),
+    VAULT_TEXTVERSION => FM::Vault::TEXT_VERSION,
+);
 $out->param(
     TUNNEL_ERLAUBT => $tunnel_erlaubt,
     TUNNEL_GESETZT => $tunnel_gesetzt,
@@ -595,7 +625,7 @@ $out->param(
 
 if (!$meldung && ($cgi->param('mo') || '')) {
     my $wo = $cgi->param('mo');
-    my %ORTE = map { $_ => 1 } qw(verbindung fernwartung passwort sicherungen wiederherstellung messwerte testen trennen);
+    my %ORTE = map { $_ => 1 } qw(verbindung fernwartung tresor passwort sicherungen wiederherstellung messwerte testen trennen);
     if ($ORTE{$wo}) {
         my $text = eval { FM::B64::b64u_decode($cgi->param('ms') || '') };
         $meldung = {

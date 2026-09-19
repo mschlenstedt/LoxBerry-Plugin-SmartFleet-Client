@@ -58,7 +58,7 @@ sub uebernehmen {
         $n++ if File::Copy::move($alt, $neu);
     }
 
-    for my $name (qw(sync.lock collect.lock backup.lock spool.lock events.lock
+    for my $name (qw(sync.lock collect.lock backup.lock spool.lock events.lock vault.lock
                      pin.session)) {
         unlink(File::Spec->catfile($konfigdir, $name));
     }

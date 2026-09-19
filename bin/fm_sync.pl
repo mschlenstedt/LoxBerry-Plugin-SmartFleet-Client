@@ -23,6 +23,7 @@ use FM::Selftest;
 use FM::Sync;
 use FM::Spool;
 use FM::Events;
+use FM::Vault;
 use FM::Backup::Upload;
 
 my ($dir, $verbose, $mit_log);
@@ -108,6 +109,7 @@ my %body = (
     events  => $events,
 );
 $body{selftest} = $selftest if $selftest;
+FM::Vault::rumpf_erweitern($dir, \%body);
 my $body = JSON::PP->new->canonical->utf8->encode(\%body);
 
 my $path     = '/api/sync.php';
@@ -143,6 +145,10 @@ if ($ev_offset) {
 }
 
 $state->{desired} = ref($ans->{desired}) eq 'HASH' ? $ans->{desired} : {};
+
+for my $ev (FM::Vault::antwort_verarbeiten($dir, $cfg->{site}, $ans, \%body)) {
+    FM::Events::add($rt, 'warn', 'vault', "$ev->[0]: $ev->[1]");
+}
 
 $state->{pending_acks} = [];
 

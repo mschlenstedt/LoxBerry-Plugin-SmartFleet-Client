@@ -203,6 +203,85 @@
   </div>
 </form>
 
+<div class="lb-section-title" id="tresor"><TMPL_VAR FM.VAULT_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_TRESOR_DA">
+  <TMPL_IF NAME="MELDUNG_TRESOR_OK">
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_TRESOR_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_TRESOR_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<form method="post" action="index.cgi" id="fm-tresor-form">
+  <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
+  <p class="lb-form-help hint"><TMPL_VAR FM.VAULT_HINWEIS></p>
+  <p id="fm-tresor-status">
+    <TMPL_IF NAME="VAULT_AKTIV"><TMPL_VAR FM.VAULT_STATUS_AKTIV> <TMPL_VAR VAULT_SEIT><TMPL_ELSE><TMPL_VAR FM.VAULT_STATUS_INAKTIV></TMPL_IF>
+  </p>
+  <div class="lb-actions">
+    <TMPL_IF NAME="VAULT_AKTIV">
+      <button type="submit" class="lb-btn" name="aktion" value="vault_widerruf"><TMPL_VAR FM.VAULT_BTN_WIDERRUFEN></button>
+    <TMPL_ELSE>
+      <button type="button" class="lb-btn lb-btn-primary" id="fm-vault-knopf"><TMPL_VAR FM.VAULT_BTN_AKTIVIEREN></button>
+    </TMPL_IF>
+    <button type="button" class="lb-btn" id="fm-vault-pin-knopf"><TMPL_VAR FM.VAULT_BTN_PIN_RESET></button>
+  </div>
+</form>
+
+<dialog id="fm-vault-popup" class="lb-modal" style="max-width:min(640px,94vw);" aria-labelledby="fm-vault-titel">
+  <form method="post" action="index.cgi" id="fm-vault-optin-form">
+    <input type="hidden" name="form" value="settings">
+    <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
+    <input type="hidden" name="aktion" value="vault_optin">
+    <input type="hidden" name="vault_textversion" value="<TMPL_VAR VAULT_TEXTVERSION>">
+    <div class="lb-modal-header">
+      <h2 id="fm-vault-titel" style="margin:0; font-size:1.15rem;"><TMPL_VAR FM.VAULT_POPUP_TITEL></h2>
+    </div>
+    <div class="lb-modal-content" style="text-align:left; max-height:60vh; overflow:auto;">
+      <p><TMPL_VAR FM.VAULT_POPUP_INTRO></p>
+      <ul>
+        <li><TMPL_VAR FM.VAULT_POPUP_PUNKT_1></li>
+        <li><TMPL_VAR FM.VAULT_POPUP_PUNKT_2></li>
+      </ul>
+      <p><strong><TMPL_VAR FM.VAULT_POPUP_WIE_TITEL></strong> <TMPL_VAR FM.VAULT_POPUP_WIE></p>
+      <p><strong><TMPL_VAR FM.VAULT_POPUP_BEACHTEN_TITEL></strong></p>
+      <ul>
+        <li><TMPL_VAR FM.VAULT_POPUP_RISIKO_1></li>
+        <li><TMPL_VAR FM.VAULT_POPUP_RISIKO_2></li>
+        <li><TMPL_VAR FM.VAULT_POPUP_RISIKO_3_A> <strong><TMPL_VAR FM.VAULT_POPUP_RISIKO_3_B></strong><TMPL_VAR FM.VAULT_POPUP_RISIKO_3_C></li>
+        <li><TMPL_VAR FM.VAULT_POPUP_RISIKO_4></li>
+      </ul>
+      <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+        <input type="checkbox" id="fm-vault-haken" name="vault_haken" value="1" style="margin-top:4px;">
+        <span><TMPL_VAR FM.VAULT_POPUP_HAKEN></span>
+      </label>
+    </div>
+    <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
+      <button type="button" class="lb-btn" id="fm-vault-abbrechen"><TMPL_VAR FM.VAULT_POPUP_ABBRECHEN></button>
+      <button type="submit" class="lb-btn lb-btn-primary" id="fm-vault-zustimmen" disabled><TMPL_VAR FM.VAULT_POPUP_ZUSTIMMEN></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="fm-vault-pin-popup" class="lb-modal" style="max-width:min(520px,94vw);" aria-labelledby="fm-vault-pin-titel">
+  <form method="post" action="index.cgi" id="fm-vault-pin-form">
+    <input type="hidden" name="form" value="settings">
+    <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
+    <div class="lb-modal-header">
+      <h2 id="fm-vault-pin-titel" style="margin:0; font-size:1.15rem;"><TMPL_VAR FM.VAULT_PIN_RESET_TITEL></h2>
+    </div>
+    <div class="lb-modal-content" style="text-align:left;">
+      <p><TMPL_VAR FM.VAULT_PIN_RESET_TEXT></p>
+    </div>
+    <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
+      <button type="button" class="lb-btn lb-btn-primary" id="fm-vault-pin-nein"><TMPL_VAR FM.VAULT_PIN_RESET_NEIN></button>
+      <button type="submit" class="lb-btn" name="aktion" value="vault_pin_zuruecksetzen"><TMPL_VAR FM.VAULT_PIN_RESET_JA></button>
+    </div>
+  </form>
+</dialog>
+
 <div class="lb-section-title" id="sicherungen"><TMPL_VAR FM.SICHERUNGEN_TITEL></div>
 
 <TMPL_IF NAME="MELDUNG_SICHERUNGEN_DA">
@@ -445,6 +524,32 @@
             var k = document.getElementById("check_securepin");
             if (k) { k.click(); }
         }
+    });
+
+    document.addEventListener("click", function (e) {
+        var ziel = e.target.closest
+                 ? e.target.closest("#fm-vault-knopf, #fm-vault-abbrechen, #fm-vault-pin-knopf, #fm-vault-pin-nein")
+                 : null;
+        if (!ziel) { return; }
+        var optin = document.getElementById("fm-vault-popup");
+        var pin   = document.getElementById("fm-vault-pin-popup");
+
+        if (ziel.id === "fm-vault-knopf" && optin && optin.showModal) {
+            var haken = document.getElementById("fm-vault-haken");
+            var zust  = document.getElementById("fm-vault-zustimmen");
+            if (haken) { haken.checked = false; }
+            if (zust)  { zust.disabled = true; }
+            optin.showModal();
+        }
+        else if (ziel.id === "fm-vault-abbrechen" && optin) { optin.close(); }
+        else if (ziel.id === "fm-vault-pin-knopf" && pin && pin.showModal) { pin.showModal(); }
+        else if (ziel.id === "fm-vault-pin-nein" && pin) { pin.close(); }
+    });
+
+    document.addEventListener("change", function (e) {
+        if (!e.target || e.target.id !== "fm-vault-haken") { return; }
+        var zust = document.getElementById("fm-vault-zustimmen");
+        if (zust) { zust.disabled = !e.target.checked; }
     });
 
     document.addEventListener("click", function (e) {
