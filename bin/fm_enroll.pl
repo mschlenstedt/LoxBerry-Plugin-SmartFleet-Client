@@ -96,7 +96,7 @@ diag("Code entschluesselt - Serveradresse: $p->{url}, Fingerprint: " . kurz($p->
 sag("Server: $p->{url}");
 
 my $keyfile = FM::Config::keyfile($dir);
-if (-e $keyfile && !$force) {
+if (-s $keyfile && !$force && eval { FM::Keys::public_raw($keyfile); 1 }) {
     sag("Vorhandenen Schluessel wiederverwenden.");
 } else {
     versuchen(sub { FM::Keys::generate($keyfile) });

@@ -21,6 +21,10 @@ if [ -d "$quelle" ]; then
             *.lock|pin.session) continue ;;
         esac
         cp -p "$datei" "$sicherung/" 2>/dev/null
+        if ! cmp -s "$datei" "$sicherung/$name"; then
+            echo "SmartFleet: Sicherung von $name fehlgeschlagen (Platte voll?) - Upgrade abgebrochen, die bestehende Installation bleibt unangetastet." >&2
+            exit 2
+        fi
     done
 fi
 
