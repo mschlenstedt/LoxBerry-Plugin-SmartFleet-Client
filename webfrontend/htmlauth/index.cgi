@@ -8,6 +8,7 @@ use strict;
 use warnings;
 
 use CGI;
+$CGI::POST_MAX = 20 * 1024 * 1024;
 use LoxBerry::System;
 use LoxBerry::Web;
 use LoxBerry::Storage;
@@ -18,11 +19,14 @@ use lib "$LoxBerry::System::lbpbindir/lib";
 use JSON::PP ();
 use File::Spec;
 use File::Path ();
+use File::Temp ();
 use POSIX ();
 use FM::B64;
+use FM::Backup::Keep;
 use FM::Paths;
 use FM::Config;
 use FM::Pin;
+use FM::Restore;
 use FM::Settings;
 use FM::State;
 use FM::TunnelPw;
@@ -226,6 +230,7 @@ my %MELDUNG_ORT = (
     vorschlag          => 'passwort',
     setzen             => 'passwort',
     einstellungen      => 'sicherungen',
+    wiederherstellung  => 'wiederherstellung',
     messwerte          => 'messwerte',
     pruefen            => 'testen',
 );
@@ -326,6 +331,52 @@ if ($aktion eq 'einstellungen' || $aktion eq 'messwerte') {
     }
 }
 
+if ($aktion eq 'wiederherstellung') {
+    my $cgi_fehler = $cgi->cgi_error();
+    my $upload_fh = $cgi_fehler ? undef : $cgi->upload('wiederherstellung_datei');
+    if ($cgi_fehler) {
+        melde(0, $L{'FM.MELDUNG_WIEDERHERSTELLUNG_ZU_GROSS'}, $ort);
+    }
+    elsif (!$upload_fh) {
+        melde(0, $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KEINE_DATEI'}, $ort);
+    }
+    else {
+        my $tmp_verzeichnis = eval { File::Temp::tempdir(CLEANUP => 1) };
+        my $tmp_archiv = $tmp_verzeichnis
+            ? File::Spec->catfile($tmp_verzeichnis, 'hochgeladen.7z') : undef;
+        my $kopiert = $tmp_archiv && eval {
+            open my $ausgabe, '>:raw', $tmp_archiv or die;
+            binmode $upload_fh;
+            my $puffer;
+            while (read($upload_fh, $puffer, 65536)) { print {$ausgabe} $puffer; }
+            close $ausgabe;
+            1;
+        };
+        if (!$kopiert) {
+            melde(0, $L{'FM.MELDUNG_WIEDERHERSTELLUNG_UPLOAD_FEHLER'}, $ort);
+        }
+        else {
+            my $wh_pw = defined $POST->{wiederherstellung_passwort}
+                ? $POST->{wiederherstellung_passwort} : '';
+            my $ergebnis = eval { FM::Restore::einspielen($configdir, $rt, $tmp_archiv, $wh_pw) };
+            if ($ergebnis && $ergebnis->{ok}) {
+                melde(1, $L{'FM.MELDUNG_WIEDERHERSTELLUNG_OK'}, $ort);
+            }
+            else {
+                my $grund = $ergebnis ? $ergebnis->{grund} : '';
+                my %TEXT_JE_GRUND = (
+                    kein_7z                  => $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KEIN_7Z'},
+                    entpacken_fehlgeschlagen => $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KAPUTT'},
+                    kein_manifest            => $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KEIN_MANIFEST'},
+                    falscher_typ             => $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KEIN_MANIFEST'},
+                    kopieren_fehlgeschlagen  => $L{'FM.MELDUNG_WIEDERHERSTELLUNG_KOPIEREN_FEHLGESCHLAGEN'},
+                );
+                melde(0, $TEXT_JE_GRUND{$grund} || $L{'FM.MELDUNG_WIEDERHERSTELLUNG_FEHLER'}, $ort);
+            }
+        }
+    }
+}
+
 my $tunnel_vorschlag;
 if ($aktion eq 'vorschlag') {
     $tunnel_vorschlag = eval { FM::TunnelPw::erzeugen() };
@@ -416,7 +467,7 @@ if ($stg->{backup_store} && -d $stg->{backup_store}) {
                 next if $stamp !~ /\A[0-9]{14}\z/;
                 my $gd   = File::Spec->catdir($msd, $stamp);
                 my $meta = File::Spec->catfile($gd, 'meta.json');
-                next if !-f File::Spec->catfile($gd, 'backup.zip');
+                next if !defined FM::Backup::Keep::archiv_datei($gd);
                 next if !-f $meta;
                 open(my $fh, '<:raw', $meta) or next;
                 local $/;
@@ -544,7 +595,7 @@ $out->param(
 
 if (!$meldung && ($cgi->param('mo') || '')) {
     my $wo = $cgi->param('mo');
-    my %ORTE = map { $_ => 1 } qw(verbindung fernwartung passwort sicherungen messwerte testen trennen);
+    my %ORTE = map { $_ => 1 } qw(verbindung fernwartung passwort sicherungen wiederherstellung messwerte testen trennen);
     if ($ORTE{$wo}) {
         my $text = eval { FM::B64::b64u_decode($cgi->param('ms') || '') };
         $meldung = {

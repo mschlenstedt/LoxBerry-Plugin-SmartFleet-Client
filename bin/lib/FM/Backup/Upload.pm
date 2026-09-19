@@ -99,7 +99,8 @@ sub send_one {
     return ('idle', 'nichts offen') if !$offen;
 
     my $meta = $offen->{meta};
-    my $zip  = File::Spec->catfile($offen->{dir}, 'backup.zip');
+    my $zip = FM::Backup::Keep::archiv_datei($offen->{dir});
+    return ('error', 'kein Archiv in der Generation gefunden') if !defined $zip;
 
     my $initDaten = {
         msno => $meta->{msno}, ts => $meta->{ts},

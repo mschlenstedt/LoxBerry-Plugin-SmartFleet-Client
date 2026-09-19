@@ -21,6 +21,15 @@ sub gen_dir {
     return File::Spec->catdir(ms_dir($store, $msno), $stamp);
 }
 
+sub archiv_datei {
+    my ($gendir) = @_;
+    for my $name (qw(backup.7z backup.zip)) {
+        my $p = File::Spec->catfile($gendir, $name);
+        return $p if -f $p;
+    }
+    return undef;
+}
+
 sub generations {
     my ($store, $msno) = @_;
     my $d = ms_dir($store, $msno);
@@ -33,7 +42,7 @@ sub generations {
     my @out;
     for my $s (sort { $b cmp $a } @stamps) {
         my $gd = File::Spec->catdir($d, $s);
-        next if !-f File::Spec->catfile($gd, 'backup.zip');
+        next if !defined archiv_datei($gd);
         push @out, { dir => $gd, stamp => $s };
     }
     return \@out;

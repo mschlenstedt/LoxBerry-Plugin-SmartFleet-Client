@@ -233,6 +233,43 @@
   </div>
 </form>
 
+<div class="lb-section-title" id="wiederherstellung"><TMPL_VAR FM.WIEDERHERSTELLUNG_TITEL></div>
+
+<TMPL_IF NAME="MELDUNG_WIEDERHERSTELLUNG_DA">
+  <TMPL_IF NAME="MELDUNG_WIEDERHERSTELLUNG_OK">
+    <div class="lb-callout fm-popup-quelle" data-fm-ok="1"><p><TMPL_VAR MELDUNG_WIEDERHERSTELLUNG_TEXT></p></div>
+  <TMPL_ELSE>
+    <div class="lb-callout lb-callout-warning fm-popup-quelle" data-fm-ok="0"><p><TMPL_VAR MELDUNG_WIEDERHERSTELLUNG_TEXT></p></div>
+  </TMPL_IF>
+</TMPL_IF>
+
+<div class="lb-callout lb-callout-danger">
+  <p><TMPL_VAR FM.WIEDERHERSTELLUNG_WARNUNG></p>
+</div>
+
+<form method="post" action="index.cgi" enctype="multipart/form-data">
+  <input type="hidden" name="form" value="settings">
+  <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
+  <div class="lb-form-row">
+    <label class="lb-form-label" for="wiederherstellung_datei"><TMPL_VAR FM.LABEL_WIEDERHERSTELLUNG_DATEI></label>
+    <div class="lb-form-field">
+      <input class="lb-input" type="file" id="wiederherstellung_datei" name="wiederherstellung_datei" accept=".7z">
+    </div>
+  </div>
+
+  <div class="lb-form-row">
+    <label class="lb-form-label" for="wiederherstellung_passwort"><TMPL_VAR FM.LABEL_WIEDERHERSTELLUNG_PASSWORT></label>
+    <div class="lb-form-field">
+      <input class="lb-input" type="password" id="wiederherstellung_passwort" name="wiederherstellung_passwort" value="" autocomplete="off">
+    </div>
+  </div>
+  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_WIEDERHERSTELLUNG_PASSWORT></div>
+  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_WIEDERHERSTELLUNG></div>
+  <div class="lb-actions">
+    <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="wiederherstellung"><TMPL_VAR FM.BTN_WIEDERHERSTELLEN></button>
+  </div>
+</form>
+
 <div class="lb-section-title" id="messwerte"><TMPL_VAR FM.MESSWERTE_TITEL></div>
 
 <TMPL_IF NAME="MELDUNG_MESSWERTE_DA">

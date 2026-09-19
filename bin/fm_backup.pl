@@ -120,8 +120,7 @@ for my $msno (keys %miniservers) {
 }
 
 if (!%miniservers) {
-    say_v('Kein lokal angebundener Miniserver konfiguriert.');
-    exit 0;
+    say_v('Kein lokal angebundener Miniserver konfiguriert - der LoxBerry selbst wird trotzdem gesichert.');
 }
 
 my $encrypt = 1;
@@ -153,6 +152,177 @@ if (!$dry) {
 }
 
 my $fehler_gesamt = 0;
+
+if (!defined $msno_wahl || $msno_wahl == 0) {
+    my @lb_dateien;
+    if (opendir(my $dh, $dir)) {
+        for my $name (sort readdir $dh) {
+            next if $name eq '.' || $name eq '..';
+            next if $name =~ /\.lock\z/ || $name eq 'pin.session';
+            my $pfad = File::Spec->catfile($dir, $name);
+            next if !-f $pfad;
+            push @lb_dateien, { path => $name, size => (-s $pfad) + 0,
+                                 sha256 => FM::Backup::Pack::sha256_file($pfad) };
+        }
+        closedir $dh;
+    }
+
+    my ($erster_msno) = sort { $a <=> $b } keys %miniservers;
+    my $pw0 = defined $erster_msno
+        ? FM::Miniserver::backup_passwort($miniservers{$erster_msno}) : undef;
+
+    if (!@lb_dateien) {
+        say_v('LoxBerry (msno 0): keine Datei im Konfigurationsverzeichnis');
+    }
+    elsif (!defined $pw0 || $pw0 eq '') {
+        log_oeffnen();
+        FM::Events::add($rt, 'error', 'backup',
+            'LoxBerry: kein Miniserver-Passwort verfuegbar - Verschluesselung nicht moeglich, kein Eigenbackup',
+            msno => 0);
+        say_err('LoxBerry (msno 0): kein Miniserver-Passwort verfuegbar - kein Eigenbackup');
+        $fehler_gesamt++;
+    }
+    elsif ($dry) {
+        say_v('LoxBerry (msno 0): Trockenlauf - nichts abgelegt');
+    }
+    else {
+        log_oeffnen();
+        my $fp0 = FM::Backup::Pack::fingerprint(\@lb_dateien, 1);
+        my $gens0 = FM::Backup::Keep::generations($store, 0);
+        my $unveraendert0 = 0;
+        if (@$gens0) {
+            my $alt0 = eval {
+                open my $fh, '<', File::Spec->catfile($gens0->[0]{dir}, 'meta.json') or die;
+                local $/;
+                JSON::PP->new->decode(scalar <$fh>);
+            };
+            $unveraendert0 = 1 if $alt0 && ($alt0->{fingerprint} // '') eq $fp0;
+        }
+
+        if ($unveraendert0) {
+            say_v('LoxBerry (msno 0): unveraendert - keine neue Generation');
+        }
+        else {
+            my $tmp0 = eval { tempdir(DIR => $store, CLEANUP => 1) };
+            if (!$tmp0) {
+                FM::Events::add($rt, 'error', 'backup',
+                    "LoxBerry: Ablage $store nicht beschreibbar", msno => 0);
+                say_err('LoxBerry (msno 0): Ablage nicht beschreibbar');
+                $fehler_gesamt++;
+            }
+            else {
+                my $ziel0 = File::Spec->rel2abs(File::Spec->catfile($tmp0, 'backup.7z'));
+                my $vorher0 = getcwd();
+                my $konnte_wechseln = chdir $dir;
+                my ($zok0, $zsize0, $zfehler0) = (0, 0, undef);
+                if ($konnte_wechseln) {
+                    ($zok0, $zsize0, $zfehler0) = FM::Backup::Pack::make_7z_encrypted(
+                        [ map { $_->{path} } @lb_dateien ], $ziel0, $pw0);
+                    chdir $vorher0;
+                }
+
+                if (!$konnte_wechseln) {
+                    FM::Events::add($rt, 'error', 'backup',
+                        'LoxBerry: Konfigurationsverzeichnis nicht erreichbar', msno => 0);
+                    say_err('LoxBerry (msno 0): chdir fehlgeschlagen');
+                    $fehler_gesamt++;
+                }
+                elsif (!$zok0) {
+                    FM::Events::add($rt, 'error', 'backup',
+                        'LoxBerry: Packen fehlgeschlagen'
+                            . ($zfehler0 ? " - $zfehler0" : ' - ist 7z vorhanden?'), msno => 0);
+                    say_err('LoxBerry (msno 0): Packen fehlgeschlagen'
+                          . ($zfehler0 ? " - $zfehler0" : ''));
+                    $fehler_gesamt++;
+                }
+                else {
+                    my $mversion = eval {
+                        no strict 'refs';
+                        defined &{'LoxBerry::System::pluginversion'}
+                            ? LoxBerry::System::pluginversion() : undef;
+                    } || '';
+                    my $manifest_dir = File::Spec->catdir($tmp0, 'manifest');
+                    make_path($manifest_dir);
+                    if (open my $mfh_in, '>', File::Spec->catfile($manifest_dir, 'manifest.json')) {
+                        print {$mfh_in} JSON::PP->new->canonical->encode({
+                            typ => FM::Backup::Pack::MANIFEST_TYP(),
+                            plugin_version => $mversion,
+                            erzeugt_am => $now,
+                        });
+                        close $mfh_in;
+                        FM::Backup::Pack::add_to_7z($ziel0, $manifest_dir, 'manifest.json', $pw0);
+                    }
+                    $zsize0 = -s $ziel0;
+
+                    my $meta0 = {
+                        v => 1, msno => 0, ts => $now + 0,
+                        encrypt => 1,
+                        fingerprint => $fp0,
+                        sha256 => FM::Backup::Pack::sha256_file($ziel0),
+                        size => $zsize0 + 0,
+                        files => scalar(@lb_dateien),
+                        complete => 1,
+                        missing => [],
+                        uploaded => 0,
+                    };
+                    my $meta_ok = open my $mfh0, '>', File::Spec->catfile($tmp0, 'meta.json');
+                    if (!$meta_ok) {
+                        FM::Events::add($rt, 'error', 'backup',
+                            'LoxBerry: meta.json nicht schreibbar', msno => 0);
+                        say_err('LoxBerry (msno 0): meta.json nicht schreibbar');
+                        $fehler_gesamt++;
+                    }
+                    else {
+                        print {$mfh0} JSON::PP->new->canonical->encode($meta0);
+                        close $mfh0;
+
+                        my @g0 = gmtime($now);
+                        my $stamp0 = sprintf('%04d%02d%02d%02d%02d%02d',
+                            $g0[5] + 1900, $g0[4] + 1, $g0[3], $g0[2], $g0[1], $g0[0]);
+                        my $ziel_gen0 = FM::Backup::Keep::gen_dir($store, 0, $stamp0);
+                        make_path(FM::Backup::Keep::ms_dir($store, 0));
+                        if (!rename($tmp0, $ziel_gen0)) {
+                            FM::Events::add($rt, 'error', 'backup',
+                                'LoxBerry: Generation konnte nicht an den Platz', msno => 0);
+                            say_err('LoxBerry (msno 0): Generation konnte nicht an den Platz');
+                            $fehler_gesamt++;
+                        }
+                        else {
+                            my $weg0 = FM::Backup::Keep::prune($store, 0);
+                            say_ok(sprintf('LoxBerry: Generation %s, %.2f MB, %d Dateien%s',
+                                $stamp0, $zsize0 / 1048576, scalar(@lb_dateien),
+                                $weg0 ? ", $weg0 weggerollt" : ''));
+
+                            if ($cfg->{site} && $cfg->{server}) {
+                                my ($lage0, $meldung0, $stuecke0) = eval {
+                                    FM::Backup::Upload::send_all(
+                                        $cfg, $keyfile, $store, 0, \&say_v, \&say_deb);
+                                };
+                                if (my $err0 = $@) {
+                                    $err0 =~ s/\s+\z//;
+                                    ($lage0, $meldung0, $stuecke0) = ('error', $err0, 0);
+                                }
+                                if ($lage0 eq 'error') {
+                                    FM::Events::add($rt, 'error', 'backup',
+                                        "LoxBerry: Uebertragung fehlgeschlagen - $meldung0", msno => 0);
+                                    say_err("LoxBerry (msno 0): Uebertragung fehlgeschlagen - $meldung0");
+                                    $fehler_gesamt++;
+                                }
+                                elsif ($lage0 eq 'done') {
+                                    FM::Events::add($rt, 'info', 'backup',
+                                        'LoxBerry: Backup erfolgreich hochgeladen'
+                                            . ($meldung0 eq 'schon bekannt' ? ' (unveraendert, bereits bekannt)' : ''),
+                                        msno => 0);
+                                    say_ok(sprintf('LoxBerry: Uebertragung abgeschlossen (%d Stueck)', $stuecke0));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 for my $msno (sort { $a <=> $b } keys %miniservers) {
     next if defined $msno_wahl && $msno != $msno_wahl;
@@ -255,7 +425,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         next;
     }
 
-    my $zip = File::Spec->rel2abs(File::Spec->catfile($tmp, 'backup.zip'));
+    my $zip = File::Spec->rel2abs(File::Spec->catfile($tmp, 'backup.7z'));
     my $vorher = getcwd();
     chdir $inhalt or do {
         FM::Events::add($rt, 'error', 'backup',
@@ -265,7 +435,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         next;
     };
     my ($zok, $zsize, $zfehler) =
-        FM::Backup::Pack::make_zip_encrypted('.', $zip, $pw);
+        FM::Backup::Pack::make_7z_encrypted('.', $zip, $pw);
     chdir $vorher;
 
     if (!$zok) {
@@ -273,7 +443,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
             "Miniserver $msno: Packen fehlgeschlagen"
                 . ($zfehler ? " - $zfehler" : ' - ist 7z vorhanden?'), msno => 0);
         say_err("Miniserver $msno: Packen fehlgeschlagen"
-              . ($zfehler ? " - $zfehler" : ' - ist zip vorhanden?'));
+              . ($zfehler ? " - $zfehler" : ' - ist 7z vorhanden?'));
         $fehler_gesamt++;
         next;
     }
@@ -376,8 +546,7 @@ sub aufraeumen {
             closedir $mh;
             for my $g (@gen) {
                 my $gp = File::Spec->catdir($p, $g);
-                remove_tree($gp)
-                    if !-f File::Spec->catfile($gp, 'backup.zip');
+                remove_tree($gp) if !defined FM::Backup::Keep::archiv_datei($gp);
             }
             next;
         }

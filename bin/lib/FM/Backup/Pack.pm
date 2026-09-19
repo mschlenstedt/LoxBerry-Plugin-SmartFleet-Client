@@ -8,6 +8,7 @@ package FM::Backup::Pack;
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex);
+use Cwd ();
 
 sub sha256_file {
     my ($pfad) = @_;
@@ -32,12 +33,20 @@ sub fingerprint {
     return sha256_hex(join '', sort @zeilen);
 }
 
-sub make_zip {
-    my ($quelldir, $zieldatei) = @_;
-    return (0, 0) if !-d $quelldir;
+use constant MANIFEST_TYP => 'smartfleet-loxberry-backup';
+
+sub have_7z {
+    my $rc = system('sh', '-c', 'command -v 7z >/dev/null 2>&1');
+    return $rc == 0 ? 1 : 0;
+}
+
+sub make_7z {
+    my ($dateiliste, $zieldatei) = @_;
+    return (0, 0) if ref($dateiliste) ne 'ARRAY' || !@$dateiliste;
+    return (0, 0) if !have_7z();
 
     unlink $zieldatei if -e $zieldatei;
-    my $rc = system('zip', '-q', '-r', '-X', $zieldatei, '.', '-i', '*');
+    my $rc = system('7z', 'a', '-t7z', '-bso0', '-bsp0', $zieldatei, @$dateiliste);
     if ($rc != 0) {
         unlink $zieldatei if -e $zieldatei;
         return (0, 0);
@@ -47,23 +56,39 @@ sub make_zip {
     return (1, $sz);
 }
 
-sub have_7z {
-    my $rc = system('sh', '-c', 'command -v 7z >/dev/null 2>&1');
+sub add_to_7z {
+    my ($zieldatei, $verzeichnis, $dateiname, $passwort) = @_;
+    return 0 if !-f "$verzeichnis/$dateiname";
+    return 0 if !have_7z();
+
+    my $vorher = Cwd::getcwd();
+    chdir $verzeichnis or return 0;
+    my @pw_arg = (defined $passwort && $passwort ne '') ? ('-p' . $passwort) : ();
+    my $rc = system('7z', 'a', '-t7z', @pw_arg, '-bso0', '-bsp0', $zieldatei, $dateiname);
+    chdir $vorher;
     return $rc == 0 ? 1 : 0;
 }
 
-sub make_zip_encrypted {
-    my ($quelldir, $zieldatei, $passwort) = @_;
-    return (0, 0, 'kein Quellverzeichnis') if !-d $quelldir;
+sub make_7z_encrypted {
+    my ($quelle, $zieldatei, $passwort) = @_;
+    my @quellen;
+    if (ref($quelle) eq 'ARRAY') {
+        return (0, 0, 'leere Dateiliste') if !@$quelle;
+        @quellen = @$quelle;
+    }
+    else {
+        return (0, 0, 'kein Quellverzeichnis') if !-d $quelle;
+        @quellen = ($quelle);
+    }
     return (0, 0, 'leeres Passwort')
         if !defined $passwort || $passwort eq '';
     return (0, 0, '7z fehlt') if !have_7z();
 
     unlink $zieldatei if -e $zieldatei;
 
-    my $rc = system('7z', 'a', '-tzip', '-mem=AES256',
+    my $rc = system('7z', 'a', '-t7z', '-mhe=on',
                     '-p' . $passwort, '-bso0', '-bsp0',
-                    $zieldatei, $quelldir);
+                    $zieldatei, @quellen);
     if ($rc != 0) {
         unlink $zieldatei if -e $zieldatei;
         return (0, 0, "7z meldete $rc");
