@@ -66,6 +66,8 @@
         <td><TMPL_IF NAME="TUNNEL_GESETZT"><span class="fm-tag-ok"><TMPL_VAR FM.JA></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.NEIN></span></TMPL_IF></td></tr>
     <tr><td><TMPL_VAR FM.LABEL_TUNNEL_ZUGRIFF></td>
         <td><TMPL_IF NAME="TUNNEL_ERLAUBT"><span class="fm-tag-ok"><TMPL_VAR FM.FREIGEGEBEN></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.GESPERRT></span></TMPL_IF></td></tr>
+    <tr><td><TMPL_VAR FM.VAULT_TITEL></td>
+        <td><TMPL_IF NAME="VAULT_AKTIV"><span class="fm-tag-ok"><TMPL_VAR FM.STATUS_AKTIV></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.STATUS_INAKTIV></span></TMPL_IF></td></tr>
   </table>
 
   <TMPL_IF NAME="TUNNEL_OFFEN">

@@ -46,6 +46,7 @@
 .fm-popup-titel .pi { font-size: 1.4rem; }
 .fm-popup-erfolg .pi { color: var(--lb-success, #2e7d32); }
 .fm-popup-fehler .pi { color: var(--lb-danger, #c62828); }
+.fm-popup-erfolg .fm-popup-zu { background: var(--lb-success, #2e7d32); border-color: var(--lb-success, #2e7d32); color: #fff; }
 </style>
 
 <div class="lb-content">
@@ -156,7 +157,7 @@
              <TMPL_IF NAME="TUNNEL_ERLAUBT">checked</TMPL_IF>>
       <span class="lb-toggle-slider"></span>
     </label>
-    <div style="flex-basis: 100%; font-size: 0.8rem; color: var(--lb-text-muted); line-height: 1.5;">
+    <div style="flex-basis: 100%;">
       <span id="fm-zugriff-text" data-an="<TMPL_VAR FM.ZUGRIFF_ERLAUBT>" data-aus="<TMPL_VAR FM.ZUGRIFF_GESPERRT>"><TMPL_IF NAME="TUNNEL_ERLAUBT"><TMPL_VAR FM.ZUGRIFF_ERLAUBT><TMPL_ELSE><TMPL_VAR FM.ZUGRIFF_GESPERRT></TMPL_IF></span>
       <TMPL_VAR FM.ZUGRIFF_HINWEIS>
     </div>
@@ -216,17 +217,18 @@
 <form method="post" action="index.cgi" id="fm-tresor-form">
   <input type="hidden" name="form" value="settings">
   <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
-  <p class="lb-form-help hint"><TMPL_VAR FM.VAULT_HINWEIS></p>
+  <p><TMPL_VAR FM.VAULT_HINWEIS></p>
   <p id="fm-tresor-status">
-    <TMPL_IF NAME="VAULT_AKTIV"><TMPL_VAR FM.VAULT_STATUS_AKTIV> <TMPL_VAR VAULT_SEIT><TMPL_ELSE><TMPL_VAR FM.VAULT_STATUS_INAKTIV></TMPL_IF>
+    <TMPL_VAR FM.VAULT_STATUS_LABEL>
+    <TMPL_IF NAME="VAULT_AKTIV"><span class="fm-tag-ok"><TMPL_VAR FM.VAULT_STATUS_AKTIV> <TMPL_VAR VAULT_SEIT></span><TMPL_ELSE><span class="fm-tag-weg"><TMPL_VAR FM.VAULT_STATUS_INAKTIV></span></TMPL_IF>
   </p>
   <div class="lb-actions">
     <TMPL_IF NAME="VAULT_AKTIV">
-      <button type="submit" class="lb-btn" name="aktion" value="vault_widerruf"><TMPL_VAR FM.VAULT_BTN_WIDERRUFEN></button>
+      <button type="button" class="lb-btn" id="fm-vault-widerruf-knopf"><TMPL_VAR FM.VAULT_BTN_WIDERRUFEN></button>
     <TMPL_ELSE>
       <button type="button" class="lb-btn lb-btn-primary" id="fm-vault-knopf"><TMPL_VAR FM.VAULT_BTN_AKTIVIEREN></button>
     </TMPL_IF>
-    <button type="button" class="lb-btn" id="fm-vault-pin-knopf"><TMPL_VAR FM.VAULT_BTN_PIN_RESET></button>
+    <button type="button" class="lb-btn" id="fm-vault-pin-knopf" <TMPL_UNLESS NAME="VAULT_AKTIV">disabled</TMPL_UNLESS>><TMPL_VAR FM.VAULT_BTN_PIN_RESET></button>
   </div>
 </form>
 
@@ -261,6 +263,23 @@
     <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
       <button type="button" class="lb-btn" id="fm-vault-abbrechen"><TMPL_VAR FM.VAULT_POPUP_ABBRECHEN></button>
       <button type="submit" class="lb-btn lb-btn-primary" id="fm-vault-zustimmen" disabled><TMPL_VAR FM.VAULT_POPUP_ZUSTIMMEN></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="fm-vault-widerruf-popup" class="lb-modal" style="max-width:min(520px,94vw);" aria-labelledby="fm-vault-widerruf-titel">
+  <form method="post" action="index.cgi" id="fm-vault-widerruf-form">
+    <input type="hidden" name="form" value="settings">
+    <input type="hidden" name="schein" value="<TMPL_VAR SCHEIN>">
+    <div class="lb-modal-header">
+      <h2 id="fm-vault-widerruf-titel" style="margin:0; font-size:1.15rem; color:var(--lb-danger,#c62828);"><TMPL_VAR FM.VAULT_WIDERRUF_TITEL></h2>
+    </div>
+    <div class="lb-modal-content" style="text-align:left;">
+      <p><TMPL_VAR FM.VAULT_WIDERRUF_TEXT></p>
+    </div>
+    <div class="lb-actions" style="padding:var(--lb-space-md,16px);">
+      <button type="button" class="lb-btn lb-btn-primary" id="fm-vault-widerruf-nein"><TMPL_VAR FM.VAULT_WIDERRUF_NEIN></button>
+      <button type="submit" class="lb-btn" style="background:var(--lb-danger,#c62828); border-color:var(--lb-danger,#c62828); color:#fff;" name="aktion" value="vault_widerruf"><TMPL_VAR FM.VAULT_WIDERRUF_JA></button>
     </div>
   </form>
 </dialog>
@@ -322,9 +341,7 @@
   </TMPL_IF>
 </TMPL_IF>
 
-<div class="lb-callout lb-callout-danger">
-  <p><TMPL_VAR FM.WIEDERHERSTELLUNG_WARNUNG></p>
-</div>
+<p><TMPL_VAR FM.WIEDERHERSTELLUNG_WARNUNG></p>
 
 <form method="post" action="index.cgi" enctype="multipart/form-data">
   <input type="hidden" name="form" value="settings">
@@ -335,6 +352,7 @@
       <input class="lb-input" type="file" id="wiederherstellung_datei" name="wiederherstellung_datei" accept=".7z">
     </div>
   </div>
+  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_WIEDERHERSTELLUNG></div>
 
   <div class="lb-form-row">
     <label class="lb-form-label" for="wiederherstellung_passwort"><TMPL_VAR FM.LABEL_WIEDERHERSTELLUNG_PASSWORT></label>
@@ -343,7 +361,6 @@
     </div>
   </div>
   <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_WIEDERHERSTELLUNG_PASSWORT></div>
-  <div class="lb-form-help hint"><TMPL_VAR FM.HINWEIS_WIEDERHERSTELLUNG></div>
   <div class="lb-actions">
     <button type="submit" class="lb-btn lb-btn-primary" name="aktion" value="wiederherstellung"><TMPL_VAR FM.BTN_WIEDERHERSTELLEN></button>
   </div>
@@ -401,6 +418,9 @@
   </div>
   <div class="lb-modal-content" style="text-align:left;">
     <p id="fm-popup-text" style="margin:0;"></p>
+    <div style="display:flex; justify-content:center; margin-top:var(--lb-space-lg,24px);">
+      <button type="button" class="lb-btn fm-popup-zu" onclick="document.getElementById('fm-popup').close();"><TMPL_VAR FM.BTN_SCHLIESSEN></button>
+    </div>
   </div>
 </dialog>
 
@@ -528,11 +548,12 @@
 
     document.addEventListener("click", function (e) {
         var ziel = e.target.closest
-                 ? e.target.closest("#fm-vault-knopf, #fm-vault-abbrechen, #fm-vault-pin-knopf, #fm-vault-pin-nein")
+                 ? e.target.closest("#fm-vault-knopf, #fm-vault-abbrechen, #fm-vault-pin-knopf, #fm-vault-pin-nein, #fm-vault-widerruf-knopf, #fm-vault-widerruf-nein")
                  : null;
         if (!ziel) { return; }
         var optin = document.getElementById("fm-vault-popup");
         var pin   = document.getElementById("fm-vault-pin-popup");
+        var wid   = document.getElementById("fm-vault-widerruf-popup");
 
         if (ziel.id === "fm-vault-knopf" && optin && optin.showModal) {
             var haken = document.getElementById("fm-vault-haken");
@@ -544,6 +565,8 @@
         else if (ziel.id === "fm-vault-abbrechen" && optin) { optin.close(); }
         else if (ziel.id === "fm-vault-pin-knopf" && pin && pin.showModal) { pin.showModal(); }
         else if (ziel.id === "fm-vault-pin-nein" && pin) { pin.close(); }
+        else if (ziel.id === "fm-vault-widerruf-knopf" && wid && wid.showModal) { wid.showModal(); }
+        else if (ziel.id === "fm-vault-widerruf-nein" && wid) { wid.close(); }
     });
 
     document.addEventListener("change", function (e) {
