@@ -39,6 +39,7 @@ sub say_err { my $t = "@_"; print "$t\n" if $verbose; FM::Loxlog::err($log, $t);
 sub say_deb { my $t = "@_"; print "$t\n" if $verbose; FM::Loxlog::deb($log, $t); }
 
 sub lb_id_lesen {
+    no warnings 'once';
     my $pfad = "$LoxBerry::System::lbsconfigdir/loxberryid.cfg";
     open(my $fh, '<', $pfad) or return undef;
     local $/;
