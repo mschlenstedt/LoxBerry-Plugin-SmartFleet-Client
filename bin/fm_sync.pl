@@ -24,6 +24,8 @@ use FM::Sync;
 use FM::Spool;
 use FM::Events;
 use FM::Vault;
+use FM::Chart;
+use File::Spec;
 use FM::Backup::Upload;
 
 my ($dir, $verbose, $mit_log);
@@ -146,6 +148,11 @@ if ($ev_offset) {
 
 $state->{desired} = ref($ans->{desired}) eq 'HASH' ? $ans->{desired} : {};
 
+if (ref($ans->{charts_auswahl}) eq 'ARRAY') {
+    eval { FM::Chart::auswahl_speichern($dir, $ans->{charts_auswahl}); 1 }
+        or say_v('Charts: Auswahl nicht gespeichert');
+}
+
 for my $ev (FM::Vault::antwort_verarbeiten($dir, $cfg->{site}, $ans, \%body)) {
     FM::Events::add($rt, 'warn', 'vault', "$ev->[0]: $ev->[1]");
 }
@@ -213,6 +220,23 @@ my %HANDLER = (
 
         my $rc = system(@arg);
         return ($rc == 0 ? 1 : 0, $rc == 0 ? 'Backup erzeugt' : "Laeufer meldete $rc");
+    },
+
+    chart_katalog => sub {
+        my ($job) = @_;
+        my $f = File::Spec->catfile($rt, 'chart_katalog.req');
+        open my $fh, '>', $f or return (0, 'Anforderung nicht ablegbar');
+        close $fh;
+        return (1, 'Katalog wird beim naechsten Lauf neu erstellt');
+    },
+    vault_resend => sub {
+        my ($job) = @_;
+        my $payload = (ref($job) eq 'HASH' && ref($job->{payload}) eq 'HASH') ? $job->{payload} : {};
+        my $neu = $payload->{neu} ? 1 : 0;
+        my $r = FM::Vault::neu_anfordern($dir, $neu);
+        return (0, 'Uebermittlung an den Tresor ist nicht aktiviert') if $r ne 'ok';
+        return (1, $neu ? 'Neuer Tresor: Schluessel wird uebernommen, Passwoerter werden neu uebertragen'
+                        : 'Passwoerter werden neu uebertragen');
     },
 
     tunnel_open => sub {

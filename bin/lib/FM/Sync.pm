@@ -25,6 +25,7 @@ sub count_values {
             $n += scalar(keys %{ $m->{v} }) if ref($m->{v}) eq 'HASH';
         }
     }
+    $n += scalar(@{ $rec->{ch} }) if ref($rec->{ch}) eq 'ARRAY';
     return $n;
 }
 

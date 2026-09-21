@@ -133,7 +133,7 @@ sub _speichern {
     my $alt = umask(0077);
     my $tmp = "$pfad.tmp";
     my $ok = eval {
-        _spew($tmp, JSON::PP->new->canonical->encode($daten));
+        _spew($tmp, JSON::PP->new->ascii->canonical->encode($daten));
         chmod(0600, $tmp) == 1 or die "FM::Vault: chmod $tmp: $!\n";
         rename($tmp, $pfad) or die "FM::Vault: rename $pfad: $!\n";
         1;
@@ -154,12 +154,21 @@ sub _korb {
     }
     $k = {} if $st ne 'ok';
     $k->{eintraege} = {} if ref($k->{eintraege}) ne 'HASH';
-    $k->{hashes}    = {} if ref($k->{hashes}) ne 'HASH';
+    $k->{hashes}    = {} if ref($k->{hashes}) ne 'HASH' || !defined $k->{v} || $k->{v} !~ /^\d+$/ || $k->{v} < 2;
     $k->{widerruf}  = $k->{widerruf} ? 1 : 0;
     return $k;
 }
 
-sub _korb_speichern { my ($dir, $k) = @_; return _speichern(_pfad($dir, 'vault_korb.json'), $k); }
+sub _korb_speichern { my ($dir, $k) = @_; $k->{v} = 2; return _speichern(_pfad($dir, 'vault_korb.json'), $k); }
+
+sub _korb_leeren {
+    my ($dir) = @_;
+    return 1 if !-e _pfad($dir, 'vault_korb.json');   # nichts da, nichts zu leeren (und keine Datei ohne Not anlegen)
+    my $k = _korb($dir, 1);
+    $k->{eintraege} = {};
+    $k->{hashes} = {};
+    return _korb_speichern($dir, $k);
+}
 
 sub info_pruefen {
     my ($dir, $site, $info) = @_;
@@ -176,6 +185,7 @@ sub info_pruefen {
         _speichern(_pfad($dir, 'vault.json'), {
             ident_pub => $info->{ident_pub}, version => $info->{key_version} + 0,
             enc_pub => $info->{enc_pub}, site => $site });
+        _korb_leeren($dir);
         return 'gepinnt';
     }
     return 'identitaet_geaendert' if $pin->{ident_pub} ne $info->{ident_pub};
@@ -192,6 +202,7 @@ sub pin_loeschen {
     my $lock = _sperre($dir);
     my $p = _pfad($dir, 'vault.json');
     unlink $p if -e $p;
+    _korb_leeren($dir);
     return 1;
 }
 
@@ -255,12 +266,69 @@ sub tunnel_json {
     return JSON::PP->new->utf8->canonical->encode({ typ => 'tunnel', pass => $zeichen });
 }
 
+sub _pw_zeichen {
+    my ($pw) = @_;
+    return undef if !defined $pw;
+    return $pw if utf8::is_utf8($pw);
+    return eval { Encode::decode('UTF-8', $pw, Encode::FB_CROAK() | Encode::LEAVE_SRC()) };
+}
+
+sub tunnel_pw_speichern {
+    my ($dir, $pw) = @_;
+    my $z = _pw_zeichen($pw);
+    return 0 if !defined $z || $z eq '';
+    return eval { my $lock = _sperre($dir); _speichern(_pfad($dir, 'tunnel_pw.json'), { pw => $z }); 1 } ? 1 : 0;
+}
+
+sub tunnel_pw_laden {
+    my ($dir) = @_;
+    my ($st, $d) = _laden(_pfad($dir, 'tunnel_pw.json'));
+    return undef if $st ne 'ok';
+    my $p = $d->{pw};
+    return (defined $p && !ref($p) && length($p)) ? $p : undef;
+}
+
 sub tunnel_einreihen {
     my ($dir, $pw) = @_;
+    my $abgelegt = tunnel_pw_speichern($dir, $pw);
     return 'kein_optin' if !optin_gueltig($dir);
-    my $json = tunnel_json($pw);
-    my $ok = defined $json && eval { einreihen($dir, 'tunnel', $json) };
-    return $ok ? 'uebertragen' : 'nicht_uebertragen';
+    return 'nicht_uebertragen' if !$abgelegt;
+    my $sitekey = eval { _slurp(_pfad($dir, 'site.key')) };
+    return 'wartet' if !defined $sitekey || !length($sitekey);
+    return tunnel_einreihen_gespeichert($dir, $sitekey) ? 'uebertragen' : 'wartet';
+}
+
+sub tunnel_einreihen_gespeichert {
+    my ($dir, $sitekey) = @_;
+    return 0 if !defined $sitekey || !length($sitekey);
+    return eval {
+        my $pw = tunnel_pw_laden($dir);
+        return 0 if !defined $pw;
+        utf8::upgrade($pw);
+        my $json = tunnel_json($pw);
+        return 0 if !defined $json;
+        my $hash = ms_hash($sitekey, $json);
+        return 0 if !hash_geaendert($dir, 'tunnel', $hash);
+        return 0 if hash_ausstehend($dir, 'tunnel', $hash);
+        return 0 if !einreihen($dir, 'tunnel', $json, $hash);
+        1;
+    } ? 1 : 0;
+}
+
+sub neu_anfordern {
+    my ($dir, $neu) = @_;
+    return 'kein_optin' if !optin_gueltig($dir);
+    return eval {
+        if ($neu) {
+            pin_loeschen($dir);
+        } else {
+            my $lock = _sperre($dir);
+            my $k = _korb($dir, 1);
+            $k->{hashes} = {};
+            _korb_speichern($dir, $k);
+        }
+        'ok';
+    } || 'kein_optin';
 }
 
 sub widerruf_offen { my ($dir) = @_; return _korb($dir, 0)->{widerruf} ? 1 : 0; }
@@ -274,7 +342,7 @@ sub widerruf_quittiert {
 }
 
 sub einreihen {
-    my ($dir, $key, $klartext) = @_;
+    my ($dir, $key, $klartext, $hash) = @_;
     my ($st, $pin) = _laden(_pfad($dir, 'vault.json'));
     return 0 if $st ne 'ok' || !length($pin->{enc_pub} // '') || !defined $klartext || !length($key // '');
     my $enc = eval { FM::B64::b64u_decode($pin->{enc_pub}) };
@@ -283,7 +351,7 @@ sub einreihen {
     return 0 if !defined $cipher;
     my $lock = _sperre($dir);
     my $k = _korb($dir, 1);
-    $k->{eintraege}{$key} = { cipher => $cipher, version => ($pin->{version} // 0) + 0 };
+    $k->{eintraege}{$key} = { cipher => $cipher, version => ($pin->{version} // 0) + 0, (defined $hash ? (hash => $hash) : ()) };
     _korb_speichern($dir, $k);
     return 1;
 }
@@ -303,6 +371,8 @@ sub bestaetigt {
             my $e = $k->{eintraege}{$key};
             next if ref($e) eq 'HASH' && (!defined $gesendet->{$key} || ($e->{cipher} // '') ne $gesendet->{$key});
         }
+        my $e = $k->{eintraege}{$key};
+        $k->{hashes}{$key} = $e->{hash} if ref($e) eq 'HASH' && defined $e->{hash} && length $e->{hash};
         delete $k->{eintraege}{$key};
     }
     return _korb_speichern($dir, $k);
@@ -312,6 +382,45 @@ sub hash_geaendert {
     my ($dir, $hkey, $hex) = @_;
     my $alt = _korb($dir, 0)->{hashes}{$hkey};
     return (defined $alt && $alt eq $hex) ? 0 : 1;
+}
+
+sub namen_speichern {
+    my ($dir, $roh) = @_;
+    return 0 if ref($roh) ne 'HASH';
+    my %neu;
+    for my $k (keys %$roh) {
+        next if $k !~ /^ms[0-9]{1,3}\z/;
+        my $v = $roh->{$k};
+        next if !defined $v || ref($v) || $v eq '';
+        $neu{$k} = substr($v, 0, 190);
+    }
+    my $pfad = _pfad($dir, 'vault_namen.json');
+    my ($st, $alt) = _laden($pfad);
+    my $json = JSON::PP->new->ascii->canonical;
+    return 1 if $st eq 'ok' && $json->encode($alt) eq $json->encode(\%neu);
+    my $lock = _sperre($dir);
+    _speichern($pfad, \%neu);
+    return 1;
+}
+
+sub namen_bekannt {
+    my ($dir) = @_;
+    my ($st) = _laden(_pfad($dir, 'vault_namen.json'));
+    return $st eq 'ok' ? 1 : 0;
+}
+
+sub server_name {
+    my ($dir, $msno) = @_;
+    my ($st, $n) = _laden(_pfad($dir, 'vault_namen.json'));
+    return undef if $st ne 'ok';
+    my $v = $n->{"ms$msno"};
+    return (defined $v && !ref($v) && length $v) ? $v : undef;
+}
+
+sub hash_ausstehend {
+    my ($dir, $hkey, $hex) = @_;
+    my $e = _korb($dir, 0)->{eintraege}{$hkey};
+    return (ref($e) eq 'HASH' && defined $e->{hash} && $e->{hash} eq $hex) ? 1 : 0;
 }
 
 sub hash_merken {
@@ -329,21 +438,31 @@ sub zeichen {
     return defined $d ? $d : $s;
 }
 
+sub ms_klartext {
+    my ($msno, $name, $user, $pass) = @_;
+    return JSON::PP->new->canonical->utf8->encode({
+        typ => 'ms', msno => $msno + 0, name => $name // '', user => $user // '', pass => $pass,
+        note => "Miniserver Nr. $msno",
+    });
+}
+
+sub ms_hash {
+    my ($sitekey, $klartext) = @_;
+    return Digest::SHA::hmac_sha256_hex($klartext, $sitekey);
+}
+
 sub ms_einreihen {
     my ($dir, $sitekey, $msno, $name, $user, $pass) = @_;
     return 0 if !defined $sitekey || !length($sitekey) || !defined $pass || !defined $msno;
     my $ok = eval {
-        $name = zeichen($name);
         $user = zeichen($user);
         $pass = zeichen($pass);
         my $hkey = "ms$msno";
-        my $hash = Digest::SHA::hmac_sha256_hex("ms:$msno:" . Encode::encode('UTF-8', $pass), $sitekey);
+        my $klar = ms_klartext($msno, $name, $user, $pass);
+        my $hash = ms_hash($sitekey, $klar);
         return 0 if !hash_geaendert($dir, $hkey, $hash);
-        my $klar = JSON::PP->new->canonical->utf8->encode({
-            typ => 'ms', msno => $msno + 0, name => $name // '', user => $user // '', pass => $pass,
-        });
-        return 0 if !einreihen($dir, $hkey, $klar);
-        hash_merken($dir, $hkey, $hash);
+        return 0 if hash_ausstehend($dir, $hkey, $hash);
+        return 0 if !einreihen($dir, $hkey, $klar, $hash);
         1;
     };
     return $ok ? 1 : 0;
@@ -391,6 +510,7 @@ sub antwort_verarbeiten {
         1;
     };
     eval { widerruf_quittiert($dir) if $ans->{vault_widerruf_ok}; 1 };
+    eval { namen_speichern($dir, $ans->{vault_namen}) if ref($ans->{vault_namen}) eq 'HASH' && optin_gueltig($dir); 1 };
     return @ev;
 }
 

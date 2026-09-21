@@ -409,6 +409,7 @@ elsif ($aktion eq 'setzen') {
             my $tresor = FM::Vault::tunnel_einreihen($configdir, $pw);
             my $text = $L{'FM.MELDUNG_GESETZT'};
             $text .= ' ' . $L{'FM.NICHT_UEBERTRAGEN'} if $tresor eq 'nicht_uebertragen';
+            $text .= ' ' . $L{'FM.TRESOR_WARTET'} if $tresor eq 'wartet';
             melde(1, $text, $ort);
             $tunnel_vorschlag = $pw;
         }

@@ -27,6 +27,15 @@ if (!eval { FM::Vault::optin_gueltig($dir) }) {
     exit 0;
 }
 
+my $sitekey = eval { FM::Vault::_slurp(FM::Config::keyfile($dir)) };
+if (!defined $sitekey || !length($sitekey)) {
+    say_v('Kein site.key - der Laeufer beendet sich.');
+    exit 0;
+}
+
+my $t = FM::Vault::tunnel_einreihen_gespeichert($dir, $sitekey);
+say_v('Tunnel-Passwort: ' . ($t ? 'eingereiht' : 'nichts einzureihen'));
+
 my $ok_lb = eval {
     require LoxBerry::System;
     no strict 'refs';
@@ -39,9 +48,8 @@ if (!$ok_lb) {
     exit 0;
 }
 
-my $sitekey = eval { FM::Vault::_slurp(FM::Config::keyfile($dir)) };
-if (!defined $sitekey || !length($sitekey)) {
-    say_v('Kein site.key - der Laeufer beendet sich.');
+if (!FM::Vault::namen_bekannt($dir)) {
+    say_v('Noch keine Anzeigenamen vom Server - der Laeufer beendet sich.');
     exit 0;
 }
 
@@ -56,7 +64,9 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $pw = FM::Miniserver::backup_passwort($ms);
     next if !defined $pw;
     my ($user) = split(/:/, ($ms->{Credentials_RAW} // ''), 2);
-    my $r = FM::Vault::ms_einreihen($dir, $sitekey, $msno, ($ms->{Name} // ''), ($user // ''), $pw);
+    my $name = FM::Vault::server_name($dir, $msno);
+    $name = FM::Vault::zeichen($ms->{Name} // '') if !defined $name;   # dem Server noch unbekannt: Name vom LoxBerry
+    my $r = FM::Vault::ms_einreihen($dir, $sitekey, $msno, $name, ($user // ''), $pw);
     say_v("Miniserver $msno: " . ($r ? 'eingereiht' : 'nichts einzureihen'));
 }
 
