@@ -26,6 +26,7 @@ sub count_values {
         }
     }
     $n += scalar(@{ $rec->{ch} }) if ref($rec->{ch}) eq 'ARRAY';
+    $n += scalar(@{ $rec->{cr} }) if ref($rec->{cr}) eq 'ARRAY';
     return $n;
 }
 

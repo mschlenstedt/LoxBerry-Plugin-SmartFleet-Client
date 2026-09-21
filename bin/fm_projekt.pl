@@ -106,8 +106,31 @@ if (!%miniservers) {
 
 my $fehler_gesamt = 0;
 
+my $marker = File::Spec->catfile($rt, 'projekt_neu.req');
+my $marker_mtime = -e $marker ? (stat $marker)[9] : undef;
+my @lokal = sort { $a <=> $b } keys %miniservers;
+my %erledigt = map { $_ => $state->{projekt}{$_}{erzwungen_ts} }
+    grep { ref($state->{projekt}{$_}) eq 'HASH' && defined $state->{projekt}{$_}{erzwungen_ts} } @lokal;
+my ($erzwingen_von, $marker_verwerfen) = FM::Loxplan::projekt_neu_plan(
+    $marker_mtime, time(), ($cfg->{site} && $cfg->{server}) ? 1 : 0, \@lokal, \%erledigt);
+unlink $marker if $marker_verwerfen;
+
+sub projekt_speichern {
+    my $frisch = FM::State::load($rt);
+    $frisch->{projekt} = $state->{projekt};
+    FM::State::save($rt, $frisch);
+}
+
+sub marker_aufraeumen {
+    return if !defined $marker_mtime;
+    my %ts = map { $_ => $state->{projekt}{$_}{erzwungen_ts} }
+        grep { ref($state->{projekt}{$_}) eq 'HASH' } @lokal;
+    unlink $marker if FM::Loxplan::projekt_neu_erledigt($marker_mtime, \@lokal, \%ts);
+}
+
 for my $msno (sort { $a <=> $b } keys %miniservers) {
     next if defined $msno_wahl && $msno != $msno_wahl;
+    my $erzwingen = $erzwingen_von->{$msno} ? 1 : 0;
     my $ms   = $miniservers{$msno};
     my $base = FM::Miniserver::base_url($ms);
     my $cred = $ms->{Credentials_RAW};
@@ -124,7 +147,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
         next;
     }
     my $bekannt = $state->{projekt}{$msno}{app_version};
-    if (!FM::Loxplan::app_version_geaendert($bekannt, $app_version)) {
+    if (!$erzwingen && !FM::Loxplan::app_version_geaendert($bekannt, $app_version)) {
         say_v("Miniserver $msno: Programm unveraendert");
         next;
     }
@@ -164,7 +187,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $bekannt_datei   = $state->{projekt}{$msno}{dateiname};
     my $bekannt_sha256  = $state->{projekt}{$msno}{sha256};
     my $bekannt_groesse = $state->{projekt}{$msno}{groesse};
-    my $schnellpfad = defined $bekannt_datei && $bekannt_datei eq $datei
+    my $schnellpfad = !$erzwingen && defined $bekannt_datei && $bekannt_datei eq $datei
                     && defined $bekannt_sha256 && defined $bekannt_groesse;
 
     my ($loxone, $groesse, $sha256, $metadaten);
@@ -217,7 +240,8 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
             $state->{projekt}{$msno}{dateiname}   = $datei;
             $state->{projekt}{$msno}{sha256}      = $sha256;
             $state->{projekt}{$msno}{groesse}     = $groesse;
-            FM::State::save($rt, $state);
+            $state->{projekt}{$msno}{erzwungen_ts} = $marker_mtime if $erzwingen;
+            projekt_speichern();
             FM::Events::add($rt, 'info', 'projekt', "Miniserver $msno: Programm aktualisiert", msno => 0);
             say_ok("Miniserver $msno: Programm hochgeladen ($groesse Byte)");
         }
@@ -226,6 +250,7 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
     remove_tree($arbeitsdir);
 }
 
+marker_aufraeumen();
 FM::Loxlog::ende($log);
 exit($fehler_gesamt > 0 ? 1 : 0);
 

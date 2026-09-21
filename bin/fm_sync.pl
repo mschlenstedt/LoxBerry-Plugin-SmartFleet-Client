@@ -153,6 +153,11 @@ if (ref($ans->{charts_auswahl}) eq 'ARRAY') {
         or say_v('Charts: Auswahl nicht gespeichert');
 }
 
+if (ref($ans->{chart_anforderungen}) eq 'ARRAY') {
+    eval { FM::Chart::anforderungen_speichern($rt, $ans->{chart_anforderungen}) or die "nicht gespeichert\n"; 1 }
+        or say_v('Charts: Anforderungen nicht gespeichert');
+}
+
 for my $ev (FM::Vault::antwort_verarbeiten($dir, $cfg->{site}, $ans, \%body)) {
     FM::Events::add($rt, 'warn', 'vault', "$ev->[0]: $ev->[1]");
 }
@@ -222,12 +227,12 @@ my %HANDLER = (
         return ($rc == 0 ? 1 : 0, $rc == 0 ? 'Backup erzeugt' : "Laeufer meldete $rc");
     },
 
-    chart_katalog => sub {
+    projekt_neu => sub {
         my ($job) = @_;
-        my $f = File::Spec->catfile($rt, 'chart_katalog.req');
+        my $f = File::Spec->catfile($rt, 'projekt_neu.req');
         open my $fh, '>', $f or return (0, 'Anforderung nicht ablegbar');
         close $fh;
-        return (1, 'Katalog wird beim naechsten Lauf neu erstellt');
+        return (1, 'Projektdatei wird beim naechsten Lauf neu abgerufen');
     },
     vault_resend => sub {
         my ($job) = @_;

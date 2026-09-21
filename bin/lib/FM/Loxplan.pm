@@ -202,5 +202,29 @@ sub _xml_entdekodieren {
     return $s;
 }
 
+use constant PROJEKT_NEU_MAX_ALTER => 3600;
+
+sub projekt_neu_plan {
+    my ($mtime, $now, $cfg_ok, $msnos, $erledigt) = @_;
+    return ({}, 0) if !defined $mtime;
+    return ({}, 1) if !$cfg_ok || !@$msnos || $now - $mtime > PROJEKT_NEU_MAX_ALTER;
+    my %ez;
+    for my $m (@$msnos) {
+        my $ts = $erledigt->{$m};
+        $ez{$m} = 1 if !defined $ts || $ts < $mtime;
+    }
+    return (\%ez, 0);
+}
+
+sub projekt_neu_erledigt {
+    my ($mtime, $msnos, $erledigt) = @_;
+    return 0 if !defined $mtime;
+    for my $m (@$msnos) {
+        my $ts = $erledigt->{$m};
+        return 0 if !defined $ts || $ts < $mtime;
+    }
+    return 1;
+}
+
 1;
 

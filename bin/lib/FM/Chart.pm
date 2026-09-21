@@ -12,17 +12,8 @@ use File::Spec;
 use File::Temp qw(tempfile);
 use File::Copy qw(move);
 
-my %SPERRTYPEN = map { $_ => 1 } qw(virtualtextin virtualintext textstate callervirtualin);
-
 use constant INTERVALL   => 300;
 use constant AUSFALL_MAX => 3;
-use constant VERSION_INTERVALL => 300;
-
-sub gesperrt_typ {
-    my ($typ) = @_;
-    return 1 if !defined $typ || $typ eq '';
-    return $SPERRTYPEN{ lc $typ } ? 1 : 0;
-}
 
 sub zahl_mit_einheit {
     my ($s) = @_;
@@ -45,7 +36,7 @@ sub parse_all {
     my @aus;
     for my $k (sort { _nr($a) <=> _nr($b) } grep { /\Aoutput\d+\z/ } keys %$ll) {
         my $o = $ll->{$k};
-        next if ref($o) ne 'HASH' || !defined $o->{name} || $o->{name} !~ /\A[A-Za-z0-9_]{1,32}\z/;
+        next if ref($o) ne 'HASH' || !defined $o->{name} || $o->{name} !~ /\A[\p{L}\p{M}\p{N}\p{S}_]{1,32}\z/;
         my $v = $o->{value};
         next if !defined $v || ref($v) ne '';
         next if $v !~ /\A-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\z/;
@@ -54,48 +45,6 @@ sub parse_all {
     return \@aus if @aus;
     my ($z, $e) = zahl_mit_einheit($ll->{value});
     return defined $z ? [ [ 'value', $z, $e ] ] : [];
-}
-
-sub katalog_bauen {
-    my ($la, $abruf, %opt) = @_;
-    my $now      = $opt{now} || time();
-    my $deadline = $opt{deadline};
-    my (%raum, %kat);
-    if (ref($la->{rooms}) eq 'HASH') {
-        $raum{$_} = $la->{rooms}{$_}{name} for grep { ref($la->{rooms}{$_}) eq 'HASH' } keys %{ $la->{rooms} };
-    }
-    if (ref($la->{cats}) eq 'HASH') {
-        $kat{$_} = $la->{cats}{$_}{name} for grep { ref($la->{cats}{$_}) eq 'HASH' } keys %{ $la->{cats} };
-    }
-    my (@eintraege, $fehler, $consec);
-    my $vollstaendig = 1;
-    $fehler = 0;
-    $consec = 0;
-    my $controls = ref($la->{controls}) eq 'HASH' ? $la->{controls} : {};
-    for my $uuid (sort keys %$controls) {
-        my $c = $controls->{$uuid};
-        next if ref($c) ne 'HASH' || gesperrt_typ($c->{type});
-        if (defined $deadline && time() > $deadline) { $vollstaendig = 0; last; }
-        my ($ok, $body) = $abruf->($uuid);
-        if (!$ok) {
-            $fehler++;
-            if (++$consec >= AUSFALL_MAX) { $vollstaendig = 0; last; }
-            next;
-        }
-        $consec = 0;
-        my $aus = parse_all($body);
-        next if !$aus;
-        for my $a (@$aus) {
-            push @eintraege, {
-                b => $uuid, o => $a->[0],
-                name => defined $c->{name} ? $c->{name} : '',
-                raum => defined $c->{room} && defined $raum{ $c->{room} } ? $raum{ $c->{room} } : '',
-                kat  => defined $c->{cat}  && defined $kat{ $c->{cat} }   ? $kat{ $c->{cat} }   : '',
-                typ  => $c->{type}, einheit => $a->[2], wert => $a->[1], ts => $now,
-            };
-        }
-    }
-    return (\@eintraege, $vollstaendig, $fehler);
 }
 
 sub werte_lesen {
@@ -146,22 +95,6 @@ sub naechster {
     return $now + ($ok ? INTERVALL : 60);
 }
 
-sub katalog_anforderung_faellig {
-    my ($cs, $now, $anforderung) = @_;
-    return 0 if !$anforderung;
-    return 0 if $cs->{katalog_retry_at} && $cs->{katalog_retry_at} > $now;
-    return 1;
-}
-
-sub version_pruefung_faellig {
-    my ($cs, $now, $anforderung) = @_;
-    return 0 if $cs->{katalog_retry_at} && $cs->{katalog_retry_at} > $now;
-    return 1 if $anforderung;
-    return 1 if !defined $cs->{katalog_version};
-    return 1 if !defined $cs->{version_next} || $cs->{version_next} <= $now;
-    return 0;
-}
-
 sub _auswahldatei { my ($dir) = @_; return File::Spec->catfile($dir, 'chart_auswahl.json'); }
 
 sub auswahl_laden {
@@ -183,7 +116,7 @@ sub auswahl_speichern {
     for my $e (@$liste) {
         next if ref($e) ne 'HASH' || !defined $e->{msno} || $e->{msno} !~ /\A[0-9]+\z/
              || !defined $e->{b} || $e->{b} !~ /\A[0-9A-Za-z-]{1,64}\z/
-             || !defined $e->{o} || $e->{o} !~ /\A[A-Za-z0-9_]{1,32}\z/;
+             || !defined $e->{o} || $e->{o} !~ /\A[\p{L}\p{M}\p{N}\p{S}_]{1,32}\z/;
         push @sauber, { msno => $e->{msno} + 0, b => $e->{b}, o => $e->{o} };
     }
     my $json = JSON::PP->new->canonical->utf8->encode(\@sauber);
@@ -200,6 +133,71 @@ sub auswahl_speichern {
     close $fh or return 0;
     chmod 0600, $tmp;
     return move($tmp, $f) ? 1 : 0;
+}
+
+sub _anforderungsdatei { my ($rt) = @_; return File::Spec->catfile($rt, 'chart_anforderungen.json'); }
+
+sub anforderungen_laden {
+    my ($rt) = @_;
+    my $f = _anforderungsdatei($rt);
+    return [] if !-f $f;
+    open my $fh, '<:raw', $f or return [];
+    local $/;
+    my $j = <$fh>;
+    close $fh;
+    my $d = eval { JSON::PP->new->utf8->decode($j) };
+    return ref($d) eq 'ARRAY' ? $d : [];
+}
+
+sub anforderungen_speichern {
+    my ($rt, $liste) = @_;
+    return 0 if ref($liste) ne 'ARRAY';
+    my @sauber;
+    for my $e (@$liste) {
+        next if ref($e) ne 'HASH' || !defined $e->{msno} || $e->{msno} !~ /\A[0-9]+\z/
+             || !defined $e->{b} || $e->{b} !~ /\A[0-9A-Za-z-]{1,64}\z/
+             || !defined $e->{o} || $e->{o} !~ /\A[\p{L}\p{M}\p{N}\p{S}_]{1,32}\z/;
+        push @sauber, { msno => $e->{msno} + 0, b => $e->{b}, o => $e->{o} };
+    }
+    my $json = JSON::PP->new->canonical->utf8->encode(\@sauber);
+    my $f = _anforderungsdatei($rt);
+    if (-f $f && open(my $in, '<:raw', $f)) {
+        local $/;
+        my $alt = <$in>;
+        close $in;
+        return 1 if defined $alt && $alt eq $json;
+    }
+    my ($fh, $tmp) = tempfile('chart_anf.XXXXXX', DIR => $rt, UNLINK => 0);
+    binmode $fh, ':raw';
+    print {$fh} $json;
+    if (!close $fh) { unlink $tmp; return 0; }
+    if (!move($tmp, $f)) { unlink $tmp; return 0; }
+    return 1;
+}
+
+sub anforderungen_lesen {
+    my ($liste, $abruf, %opt) = @_;
+    my $deadline = $opt{deadline};
+    my %je;
+    push @{ $je{ $_->{b} } }, $_ for @$liste;
+    my (@cr, @rest);
+    for my $b (sort keys %je) {
+        if ($b !~ /\A[0-9A-Za-z-]{1,64}\z/) {
+            push @cr, { b => $b, o => $_->{o}, v => undef } for @{ $je{$b} };
+            next;
+        }
+        if (defined $deadline && time() > $deadline) {
+            push @rest, @{ $je{$b} };
+            next;
+        }
+        my ($ok, $body) = $abruf->($b);
+        my $aus = $ok ? parse_all($body) : undef;
+        my %wert = $aus ? (map { $_->[0] => $_->[1] } @$aus) : ();
+        for my $e (@{ $je{$b} }) {
+            push @cr, { b => $b, o => $e->{o}, v => (exists $wert{ $e->{o} } ? $wert{ $e->{o} } : undef) };
+        }
+    }
+    return (\@cr, \@rest);
 }
 
 sub gruppen_der_auswahl {

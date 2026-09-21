@@ -21,12 +21,9 @@ use FM::Miniserver;
 use FM::Events;
 use FM::Spool;
 use FM::Chart;
-use FM::Projekt::Upload;
 
 use constant LAUF_BUDGET    => 40;
-use constant KATALOG_TEIL   => 400;
-use constant KATALOG_RETRY  => 21600;
-use constant KURZ_RETRY     => 300;
+use constant ANTWORT_TEIL   => 50;
 
 my ($dir, $verbose);
 GetOptions('dir=s' => \$dir, 'verbose' => \$verbose)
@@ -66,92 +63,55 @@ for my $msno (keys %miniservers) {
     next if FM::Miniserver::ist_lokal($miniservers{$msno});
     delete $miniservers{$msno};
 }
-exit 0 if !%miniservers;
-
 my $state = FM::State::load($rt);
 $state->{chart} = {} if ref($state->{chart}) ne 'HASH';
 my $now = time();
 my $lauf_deadline = $now + LAUF_BUDGET;
 
-my $reqfile     = File::Spec->catfile($rt, 'chart_katalog.req');
-my $anforderung = -e $reqfile ? 1 : 0;
 my $auswahl     = FM::Chart::auswahl_laden($dir);
 my $gruppen     = FM::Chart::gruppen_der_auswahl($auswahl);
-my $erfassen    = (@$auswahl && FM::Chart::due($state, $now)) ? 1 : 0;
+my $erfassen    = (%miniservers && @$auswahl && FM::Chart::due($state, $now)) ? 1 : 0;
 
-sub katalog_hochladen {
-    my ($msno, $base, $cred, $abruf, $ver, $cs) = @_;
-    my ($ok, $body) = FM::Miniserver::get($base, $cred, '/data/LoxAPP3.json');
-    my $la = $ok ? eval { JSON::PP->new->utf8->decode($body) } : undef;
-    if (ref($la) ne 'HASH') {
-        $cs->{katalog_retry_at} = $now + KURZ_RETRY;
-        return 0;
+my $anf = FM::Chart::anforderungen_laden($rt);
+exit 0 if !@$anf && !$erfassen;
+
+my %anf_je_ms;
+push @{ $anf_je_ms{ $_->{msno} } }, $_ for @$anf;
+my (@antworten, @offen);
+for my $msno (sort { $a <=> $b } keys %anf_je_ms) {
+    my $ms = $miniservers{$msno};
+    if (!$ms) {
+        push @antworten, map { { msno => $msno + 0, b => $_->{b}, o => $_->{o}, v => undef } } @{ $anf_je_ms{$msno} };
+        next;
     }
-    my ($eintraege, $voll) = FM::Chart::katalog_bauen($la, $abruf,
-        now => $now, deadline => $lauf_deadline);
-    if (!$voll || !@$eintraege) {
-        $cs->{katalog_retry_at} = $now + KURZ_RETRY;
-        FM::Events::add($rt, 'warn', 'chart', "Miniserver $msno: Katalog unvollstaendig, neuer Versuch folgt", msno => 0);
-        return 0;
-    }
-    my $gen = join('', map { sprintf('%02x', int(rand(256))) } 1 .. 8);
-    my @teile;
-    push @teile, [ splice(@$eintraege, 0, KATALOG_TEIL) ] while @$eintraege;
-    for my $i (0 .. $#teile) {
-        my ($st) = FM::Projekt::Upload::_post($cfg, $keyfile, '/api/chart/katalog.php', {
-            msno   => $msno + 0,
-            gen    => $gen,
-            teil   => $teile[$i],
-            letzte => ($i == $#teile ? JSON::PP::true : JSON::PP::false),
-        });
-        if ($st == 403) {
-            $cs->{katalog_retry_at} = $now + KATALOG_RETRY;
-            say_v("Miniserver $msno: Server nimmt keinen Katalog an (keine Chart-Lizenz)");
-            return 2;
-        }
-        if ($st != 200) {
-            $cs->{katalog_retry_at} = $now + KURZ_RETRY;
-            say_v("Miniserver $msno: Katalog-Upload scheiterte (HTTP $st)");
-            return 0;
-        }
-    }
-    $cs->{katalog_version} = $ver if defined $ver;
-    delete $cs->{katalog_retry_at};
-    say_v("Miniserver $msno: Katalog uebertragen");
-    return 1;
+    my $base = FM::Miniserver::base_url($ms);
+    my $cred = $ms->{Credentials_RAW};
+    my $abruf = sub {
+        my ($u) = @_;
+        return FM::Miniserver::get($base, $cred, "/jdev/sps/io/$u/all");
+    };
+    my ($cr, $rest) = FM::Chart::anforderungen_lesen($anf_je_ms{$msno}, $abruf, deadline => $lauf_deadline);
+    push @antworten, map { { msno => $msno + 0, b => $_->{b}, o => $_->{o}, v => $_->{v} } } @$cr;
+    push @offen, map { { msno => $msno + 0, b => $_->{b}, o => $_->{o} } } @$rest;
+    say_v("Miniserver $msno: " . scalar(@$cr) . ' Einzelanforderungen beantwortet, ' . scalar(@$rest) . ' offen');
 }
+while (@antworten) {
+    FM::Spool::append($rt, { ts => $now, cr => [ splice(@antworten, 0, ANTWORT_TEIL) ] });
+}
+FM::Chart::anforderungen_speichern($rt, \@offen) if @$anf;
 
 my @werte;
 my $lesbar = 1;
-my $anforderung_offen = 0;
 for my $msno (sort { $a <=> $b } keys %miniservers) {
     my $ms   = $miniservers{$msno};
     my $base = FM::Miniserver::base_url($ms);
     my $cred = $ms->{Credentials_RAW};
     my $cs   = ($state->{chart}{$msno} ||= {});
+    delete @$cs{qw(katalog_version katalog_retry_at version_next)};
     my $abruf = sub {
         my ($u) = @_;
         return FM::Miniserver::get($base, $cred, "/jdev/sps/io/$u/all");
     };
-
-    my $braucht = FM::Chart::katalog_anforderung_faellig($cs, $now, $anforderung);
-    my $angefordert = $braucht;
-    if (FM::Chart::version_pruefung_faellig($cs, $now, $anforderung)) {
-        my ($vok, $vbody) = FM::Miniserver::get($base, $cred, '/jdev/sps/LoxAPPversion3');
-        my $ver = $vok ? FM::Miniserver::ll_value($vbody) : undef;
-        $cs->{version_next} = $now + FM::Chart::VERSION_INTERVALL;
-        if (!$braucht && defined $ver && $ver ne ''
-            && (!defined $cs->{katalog_version} || $cs->{katalog_version} ne $ver)) {
-            $braucht = 1;
-        }
-        if ($braucht) {
-            my $res = katalog_hochladen($msno, $base, $cred, $abruf, $ver, $cs);
-            $anforderung_offen = 1 if $angefordert && $res == 0;
-        }
-    } elsif ($braucht) {
-        my $res = katalog_hochladen($msno, $base, $cred, $abruf, undef, $cs);
-        $anforderung_offen = 1 if $res == 0;
-    }
 
     next if !$erfassen || ref($gruppen->{$msno}) ne 'ARRAY' || !@{ $gruppen->{$msno} };
     my ($w, $fehlt, $voll, $next) = FM::Chart::werte_lesen($gruppen->{$msno}, $abruf,
@@ -176,7 +136,6 @@ for my $msno (sort { $a <=> $b } keys %miniservers) {
 
 FM::Spool::append($rt, { ts => $now, ch => \@werte }) if @werte;
 $state->{chart_next} = FM::Chart::naechster($now, $lesbar) if $erfassen;
-unlink $reqfile if $anforderung && !$anforderung_offen;
 my $frisch = FM::State::load($rt);
 for my $k (qw(chart chart_next)) {
     if (exists $state->{$k}) { $frisch->{$k} = $state->{$k}; }
