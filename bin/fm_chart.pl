@@ -21,6 +21,7 @@ use FM::Miniserver;
 use FM::Events;
 use FM::Spool;
 use FM::Chart;
+use FM::Element;
 
 use constant LAUF_BUDGET    => 40;
 use constant ANTWORT_TEIL   => 50;
@@ -73,7 +74,9 @@ my $gruppen     = FM::Chart::gruppen_der_auswahl($auswahl);
 my $erfassen    = (%miniservers && @$auswahl && FM::Chart::due($state, $now)) ? 1 : 0;
 
 my $anf = FM::Chart::anforderungen_laden($rt);
-exit 0 if !@$anf && !$erfassen;
+my $pruef_roh = FM::Element::pruefung_roh($rt);
+my $pruef = FM::Element::pruefung_laden($rt);
+exit 0 if !@$anf && !$erfassen && !@$pruef;
 
 my %anf_je_ms;
 push @{ $anf_je_ms{ $_->{msno} } }, $_ for @$anf;
@@ -99,6 +102,20 @@ while (@antworten) {
     FM::Spool::append($rt, { ts => $now, cr => [ splice(@antworten, 0, ANTWORT_TEIL) ] });
 }
 FM::Chart::anforderungen_speichern($rt, \@offen) if @$anf;
+
+if (@$pruef) {
+    my $abruf_e = sub {
+        my ($msno, $u) = @_;
+        my $ms = $miniservers{$msno} or return (0, undef);
+        return FM::Miniserver::get(FM::Miniserver::base_url($ms), $ms->{Credentials_RAW}, "/jdev/sps/io/$u/all");
+    };
+    my ($ep, $ep_rest) = FM::Element::abrufen($pruef, $abruf_e, deadline => $lauf_deadline);
+    while (@$ep) {
+        FM::Spool::append($rt, { ts => $now, ep => [ splice(@$ep, 0, ANTWORT_TEIL) ] });
+    }
+    FM::Element::pruefung_rest_speichern($rt, $ep_rest, $pruef_roh);
+    say_v('Elementpruefung: ' . (scalar(@$pruef) - scalar(@$ep_rest)) . ' bearbeitet, ' . scalar(@$ep_rest) . ' offen');
+}
 
 my @werte;
 my $lesbar = 1;

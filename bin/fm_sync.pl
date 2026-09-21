@@ -25,6 +25,7 @@ use FM::Spool;
 use FM::Events;
 use FM::Vault;
 use FM::Chart;
+use FM::Element;
 use File::Spec;
 use FM::Backup::Upload;
 
@@ -156,6 +157,11 @@ if (ref($ans->{charts_auswahl}) eq 'ARRAY') {
 if (ref($ans->{chart_anforderungen}) eq 'ARRAY') {
     eval { FM::Chart::anforderungen_speichern($rt, $ans->{chart_anforderungen}) or die "nicht gespeichert\n"; 1 }
         or say_v('Charts: Anforderungen nicht gespeichert');
+}
+
+if (ref($ans->{element_pruefung}) eq 'ARRAY') {
+    eval { FM::Element::pruefung_speichern($rt, $ans->{element_pruefung}) or die "nicht gespeichert\n"; 1 }
+        or say_v('Elementdatei: Pruefliste nicht gespeichert');
 }
 
 for my $ev (FM::Vault::antwort_verarbeiten($dir, $cfg->{site}, $ans, \%body)) {

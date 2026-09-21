@@ -24,6 +24,12 @@ sub zahl_mit_einheit {
     return ($z + 0, $e);
 }
 
+sub ist_zahl {
+    my ($v) = @_;
+    return 0 if !defined $v || ref($v) ne '';
+    return $v =~ /\A-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\z/ ? 1 : 0;
+}
+
 sub _nr { my ($k) = @_; return $k =~ /(\d+)\z/ ? $1 + 0 : 0; }
 
 sub parse_all {
@@ -39,7 +45,7 @@ sub parse_all {
         next if ref($o) ne 'HASH' || !defined $o->{name} || $o->{name} !~ /\A[\p{L}\p{M}\p{N}\p{S}_]{1,32}\z/;
         my $v = $o->{value};
         next if !defined $v || ref($v) ne '';
-        next if $v !~ /\A-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\z/;
+        next if !ist_zahl($v);
         push @aus, [ $o->{name}, $v + 0, '' ];
     }
     return \@aus if @aus;
